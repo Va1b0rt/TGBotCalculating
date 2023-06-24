@@ -1,3 +1,5 @@
+import atexit
+
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.files import JSONStorage
 from aiogram.types import ContentType, Message, CallbackQuery, ParseMode
@@ -17,12 +19,28 @@ bot = Bot(token=BOT_API_TOKEN)
 dp = Dispatcher(bot, storage=storage)
 
 
+async def save_out():
+    dp.stop_polling()
+    await dp.storage.close()
+    await dp.storage.wait_closed()
+    return
+
+
+atexit.register(save_out)
+
+
 @dp.message_handler(commands=['start'], state='*')
 async def start_message_command(message: Message):
     await StatesMenu.main.set()
     await bot.send_message(message.chat.id,
                            'Вас приветствует бот для расчёта данных из выписок.',
                            reply_markup=keyboard_main)
+
+
+@dp.message_handler(commands=['timesheet'], state='*')
+async def start_message_command(message: Message):
+    await StatesMenu.timesheet_acquiring.set()
+    await bot.send_message(message.chat.id, 'Ожидаю файл выписки.')
 
 
 @dp.callback_query_handler(lambda call: call.data == "button_timesheet_acquiring", state=StatesMenu.main)
@@ -57,6 +75,12 @@ async def handle_document(message: Message):
     await StatesMenu.main.set()
 
 
+@dp.message_handler(commands=['extract'], state='*')
+async def start_message_command(message: Message):
+    await StatesMenu.extract.set()
+    await bot.send_message(message.chat.id, 'Ожидаю файл выписки.')
+
+
 @dp.callback_query_handler(lambda call: call.data == "button_extract", state=StatesMenu.main)
 async def button_upload(call: CallbackQuery):
     await StatesMenu.extract.set()
@@ -75,7 +99,7 @@ async def handle_document(message: Message):
         file = await bot.download_file(file_path)
         result = get_result(file)
 
-        await bot.send_message(message.chat.id, f'Всего: <code>{result["revenue"]}</code>',
+        await bot.send_message(message.chat.id, f'Всего: <code>{result["positives"]}</code>',
                                reply_markup=keyboard_main, parse_mode=ParseMode.HTML)
         # await message.answer(f'Искомое значение: <code>{result}</code>', parse_mode=ParseMode.HTML)
 

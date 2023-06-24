@@ -25,10 +25,13 @@ def get_all_cells(file_path: str):
 
 
 @logger.catch
-def sum_cells(cells_B: str, cells_D: str, cells_F: str, tax: int = 0) -> dict[str, Union[float, str]]:
+def sum_cells(cells_B: list[str], cells_D: list[Union[str, float]], cells_F: list[str], tax: int = 0) -> dict[str, Union[float, str]]:
 
-    result: dict[str, Union[float, str]] = {}
+    result: dict[str, Union[float, str]] = {'positives': 0.0}
     for cell_B, cell_D, cell_F in zip(cells_B, cells_D, cells_F):
+        if type(cell_D) in (float, int) and cell_D > 0:
+            if "Готiвковi надходження власних коштiв" not in cell_F and "Повернення помилково перерахованих коштiв" not in cell_F:
+                result['positives'] += cell_D
 
         if check_date(cell_B):
 
@@ -49,7 +52,8 @@ def sum_cells(cells_B: str, cells_D: str, cells_F: str, tax: int = 0) -> dict[st
 
     sum: int = 0
     for key, value in result.items():
-        sum += value
+        if key != 'positives':
+            sum += value
 
     result['revenue'] = sum
     result['tax'] = sum * (tax/100)
