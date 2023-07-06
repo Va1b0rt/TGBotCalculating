@@ -1,14 +1,14 @@
 import atexit
+import io
 
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.files import JSONStorage
 from aiogram.types import ContentType, Message, CallbackQuery, ParseMode
 
-from calculating import get_result
+from calculating import get_result, get_timesheet_data
 from XLAssembler import TableAssembler
 from logger import Logger
 from config import BOT_API_TOKEN
-from keyboards import keyboard_main
 from states import StatesMenu
 
 cls_logger = Logger()
@@ -33,8 +33,8 @@ atexit.register(save_out)
 async def start_message_command(message: Message):
     await StatesMenu.main.set()
     await bot.send_message(message.chat.id,
-                           'Вас приветствует бот для расчёта данных из выписок.',
-                           reply_markup=keyboard_main)
+                           'Вас приветствует бот для расчёта данных из выписок.'
+                           )
 
 
 @dp.message_handler(commands=['timesheet'], state='*')
@@ -53,23 +53,25 @@ async def button_upload(call: CallbackQuery):
 @dp.message_handler(content_types=ContentType.DOCUMENT, state=StatesMenu.timesheet_acquiring)
 async def handle_document(message: Message):
     document = message.document
-    if document.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel'):
+    if document.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
+                              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
         await message.answer('Получен XLS-файл. Обрабатываем...')
         file_id = document.file_id
         file_info = await bot.get_file(file_id)
         file_path = file_info.file_path
         file = await bot.download_file(file_path)
-        result = get_result(file)
+        file_name = message.document.file_name.replace('.xlsx', '').replace('.xls', '')
+        result, _ = get_timesheet_data(file, file_name)
 
         ta = TableAssembler(result)
-        result_table = ta.get_bytes()
+        result_tables = ta.get_bytes()
 
-        await bot.send_document(message.chat.id, types.InputFile(result_table, filename='RESULT.xls'),
-                                reply_markup=keyboard_main)
-        # await message.answer(f'Искомое значение: <code>{result}</code>', parse_mode=ParseMode.HTML)
+        for result in result_tables:
+
+            await bot.send_document(message.chat.id, types.InputFile(result, filename='RESULT.xls'))
 
     else:
-        await message.answer('Прикреплённый файл не является XLS-файлом', reply_markup=keyboard_main)
+        await message.answer('Прикреплённый файл не является XLS-файлом')
         logger.warning('Прикреплённый файл не является XLS-файлом')
 
     await StatesMenu.main.set()
@@ -91,7 +93,49 @@ async def button_upload(call: CallbackQuery):
 @dp.message_handler(content_types=ContentType.DOCUMENT, state=StatesMenu.extract)
 async def handle_document(message: Message):
     document = message.document
-    if document.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel'):
+    if document.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
+                              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
+        await message.answer('Получен XLS-файл. Обрабатываем...')
+        file_id = document.file_id
+        file_info = await bot.get_file(file_id)
+        file_path = file_info.file_path
+        file = await bot.download_file(file_path)
+        file_name = message.document.file_name.replace('.xlsx', '').replace('.xls', '')
+        result, rows = get_timesheet_data(file, file_name)
+
+        rows_io = io.BytesIO()
+        rows_io.write(rows.encode('utf-8'))
+        rows_io.seek(0)
+
+        msg = f'Всего: <code>{result["revenue"] if result.get("revenue") else "0.00"}</code>\n' \
+              f'1 Квартал: <code>{result["quarter_1"] if result.get("quarter_1") else "0.00"}</code>\n' \
+              f'2 Квартал: <code>{result["quarter_2"] if result.get("quarter_2") else "0.00"}</code>\n' \
+              f'3 Квартал: <code>{result["quarter_3"] if result.get("quarter_3") else "0.00"}</code>\n' \
+              f'4 Квартал: <code>{result["quarter_4"] if result.get("quarter_4") else "0.00"}</code>\n'
+
+        await bot.send_message(message.chat.id,
+                               msg,
+                               parse_mode=ParseMode.HTML)
+
+    else:
+        await message.answer('Прикреплённый файл не является XLS-файлом')
+        logger.warning('Прикреплённый файл не является XLS-файлом')
+
+    await StatesMenu.main.set()
+
+
+@dp.message_handler(commands=['extract_all'], state='*')
+async def start_message_command(message: Message):
+    await StatesMenu.extract_all.set()
+    await bot.send_message(message.chat.id, 'Ожидаю файл выписки.')
+
+
+@logger.catch
+@dp.message_handler(content_types=ContentType.DOCUMENT, state=StatesMenu.extract_all)
+async def handle_document(message: Message):
+    document = message.document
+    if document.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
+                              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
         await message.answer('Получен XLS-файл. Обрабатываем...')
         file_id = document.file_id
         file_info = await bot.get_file(file_id)
@@ -99,12 +143,56 @@ async def handle_document(message: Message):
         file = await bot.download_file(file_path)
         result = get_result(file)
 
-        await bot.send_message(message.chat.id, f'Всего: <code>{result["positives"]}</code>',
-                               reply_markup=keyboard_main, parse_mode=ParseMode.HTML)
-        # await message.answer(f'Искомое значение: <code>{result}</code>', parse_mode=ParseMode.HTML)
+        await bot.send_message(message.chat.id,
+                               f'Всего: <code>{result["positives"] if result.get("positives") else "0.00"}</code>\n'
+                               f'Затраты: <code>{result["negatives"] if result.get("negatives") else "0.00"}</code>',
+                               parse_mode=ParseMode.HTML)
 
     else:
-        await message.answer('Прикреплённый файл не является XLS-файлом', reply_markup=keyboard_main)
+        await message.answer('Прикреплённый файл не является XLS-файлом')
+        logger.warning('Прикреплённый файл не является XLS-файлом')
+
+    await StatesMenu.main.set()
+
+
+@dp.message_handler(commands=['extract_test'], state='*')
+async def start_message_command(message: Message):
+    await StatesMenu.extract_test.set()
+    await bot.send_message(message.chat.id, 'Ожидаю файл выписки.')
+
+
+@logger.catch
+@dp.message_handler(content_types=ContentType.DOCUMENT, state=StatesMenu.extract_test)
+async def handle_document(message: Message):
+    document = message.document
+    if document.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
+                              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
+        await message.answer('Получен XLS-файл. Обрабатываем...')
+        file_id = document.file_id
+        file_info = await bot.get_file(file_id)
+        file_path = file_info.file_path
+        file = await bot.download_file(file_path)
+        file_name = message.document.file_name.replace('.xlsx', '').replace('.xls', '')
+        result, rows = get_timesheet_data(file, file_name)
+
+        rows_io = io.BytesIO()
+        rows_io.write(rows.encode('utf-8'))
+        rows_io.seek(0)
+
+        msg = f'Всего: <code>{result["revenue"] if result.get("revenue") else "0.00"}</code>\n' \
+              f'1 Квартал: <code>{result["quarter_1"] if result.get("quarter_1") else "0.00"}</code>\n' \
+              f'2 Квартал: <code>{result["quarter_2"] if result.get("quarter_2") else "0.00"}</code>\n' \
+              f'3 Квартал: <code>{result["quarter_3"] if result.get("quarter_3") else "0.00"}</code>\n' \
+              f'4 Квартал: <code>{result["quarter_4"] if result.get("quarter_4") else "0.00"}</code>\n'
+
+        await bot.send_message(message.chat.id,
+                               msg,
+                               parse_mode=ParseMode.HTML)
+        await bot.send_document(message.chat.id,
+                                types.InputFile(rows_io, filename='RESULT.txt'))
+
+    else:
+        await message.answer('Прикреплённый файл не является XLS-файлом')
         logger.warning('Прикреплённый файл не является XLS-файлом')
 
     await StatesMenu.main.set()

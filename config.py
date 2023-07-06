@@ -13,3 +13,9 @@ log_path = config.get('LOGGING', 'log_path').replace('rename_this', datetime.dat
 log_format = config.get('LOGGING', 'log_format')
 rotation = config.get('LOGGING', 'rotation')
 compression = config.get('LOGGING', 'compression')
+
+
+# GOOGLE
+keyfile = config.get('GOOGLE', 'keyfile')
+sheet_url = config.get('GOOGLE', 'sheet_url')
+worksheet = config.get('GOOGLE', 'worksheet')
