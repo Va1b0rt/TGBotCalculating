@@ -1,5 +1,6 @@
 import datetime
 import io
+import math
 import re
 from typing import Union
 
@@ -7,6 +8,7 @@ import pandas as pd
 
 from logger import Logger
 from cloud_sheets import Patterns
+from utils.NBU import get_exchange_rate
 
 cls_logger = Logger()
 logger = cls_logger.get_logger
@@ -17,15 +19,16 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
     data_frame = pd.read_excel(file_path)
 
     columns = data_frame.columns.values.tolist()
-    test = data_frame[columns[0]].values.tolist()
+    test = data_frame[columns[0]].values.tolist()[0]
 
-    # 1
+    #  PRIVAT
     if data_frame[columns[0]].values.tolist()[2] == '№':
         tittle = re.search(r'.*"(.*)".*', data_frame[columns[0]].values.tolist()[0])[1]
         date_column = data_frame[columns[1]].values.tolist()
         sum_column = data_frame[columns[3]].values.tolist()
         purpose_column = data_frame[columns[5]].values.tolist()
-        return tittle, date_column, sum_column, purpose_column
+        egrpou_column = data_frame[columns[6]].values.tolist()
+        return tittle, date_column, sum_column, purpose_column, egrpou_column
     # TASCOMBANK
     elif data_frame[columns[0]].values.tolist()[0] == '№':
         tittle = re.search(r', (.*) з', columns[0])[1]
@@ -36,8 +39,11 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
                 date_column[row_num] = date.strftime('%d.%m.%Y')
 
         sum_column = data_frame[columns[2]].values.tolist()
+
         purpose_column = data_frame[columns[4]].values.tolist()
-        return tittle, date_column, sum_column, purpose_column
+        egrpou_column = data_frame[columns[5]].values.tolist()
+
+        return tittle, date_column, sum_column, purpose_column, egrpou_column
     # MONO
     elif 'Клієнт:' in columns[0]:
 
@@ -50,7 +56,10 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
 
         sum_column = data_frame[columns[5]].values.tolist()
         purpose_column = data_frame[columns[1]].values.tolist()
-        return tittle, date_column, sum_column, purpose_column
+
+        egrpou_column = data_frame[columns[3]].values.tolist()
+
+        return tittle, date_column, sum_column, purpose_column, egrpou_column
     #  A-BANK
     elif 'Дата' in columns[0]:
         tittle = exclude_non_cyrillic(filename)
@@ -65,7 +74,49 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
                 if match:
                     sum_column[num] = float(match[0])
 
-        return tittle, date_column, sum_column, purpose_column
+        egrpou_column = data_frame[columns[3]].values.tolist()
+
+        return tittle, date_column, sum_column, purpose_column, egrpou_column
+
+    #  PRIVAT(currency)
+    elif 'Дата та час операції' in data_frame[columns[0]].values.tolist()[1]:
+
+        date_column = data_frame[columns[0]].values.tolist()
+        for row_num, row in enumerate(date_column):
+            if type(row) is str:
+                if re.search(r'\d*.\d*.\d* \d*:\d*', row):
+                    date_column[row_num] = row.split(' ')[0]
+
+        if len(columns) > 8:
+            tittle = re.search(r'USD/\d* (.*ФОП)', data_frame[columns[0]].values.tolist()[0])[1]
+            # USD
+            sum_column = data_frame[columns[9]].values.tolist()
+        else:
+            tittle = re.search(r'UAH/\d* (.*ФОП)', data_frame[columns[0]].values.tolist()[0])[1]
+            # UAH
+            sum_column = data_frame[columns[7]].values.tolist()
+
+        purpose_column = data_frame[columns[6]].values.tolist()
+        egrpou_column = data_frame[columns[4]].values.tolist()
+
+        return tittle, date_column, sum_column, purpose_column, egrpou_column
+
+    # OSCHAD
+    elif 'Назва Клієнта' in columns[0]:
+        tittle = columns[5]
+
+        date_column = data_frame[columns[4]].values.tolist()
+
+        sum_column = data_frame[columns[10]].values.tolist()
+        for row_num, row_sum in enumerate(sum_column):
+            if type(row_sum) is float and math.isnan(row_sum):
+                sum_column[row_num] = 0.0
+
+        purpose_column = data_frame[columns[19]].values.tolist()
+        egrpou_column = data_frame[columns[15]].values.tolist()
+
+        return tittle, date_column, sum_column, purpose_column, egrpou_column
+
 
 
 def exclude_non_cyrillic(text):
@@ -158,8 +209,11 @@ def month_sums(report: dict[str, Union[float, str, list[float]]]) -> dict[str, U
 
 
 @logger.catch
-def gen_timesheet_data(tittle: str, cells_B: list[str], cells_D: list[Union[str, float]], cells_F: list[str],
-                       tax: int = 0) -> tuple[dict[str, Union[float, str, list[float]]], str]:
+def gen_timesheet_data(tittle: str,
+                       cells_B: list[str],
+                       cells_D: list[Union[str, float]],
+                       cells_F: list[str]) -> tuple[dict[str, Union[float, str, list[float]]], str]:
+
     patterns = Patterns()
     result: dict[str, Union[float, str]] = {}
     rows_text: str = ''
@@ -183,25 +237,128 @@ def gen_timesheet_data(tittle: str, cells_B: list[str], cells_D: list[Union[str,
                 else:
                     rows_text += f'{cell_B}  {cell_D}  {cell_F}     filter: {word}\n'
 
-    sum: int = 0
-    for key, value in result.items():
-        sum += value
-
-    result['revenue'] = sum
-    result['tax'] = sum * (tax / 100)
-
     result['tittle'] = tittle
-
-    result = quarter_identifier(result)
-    result = month_sums(result)
 
     return result, rows_text
 
 
 @logger.catch
-def get_timesheet_data(file_path: Union[str, io.FileIO], filename: str) -> tuple[dict[str, Union[float, str]], str]:
+def counting_revenue(data: dict[str, Union[float, str]], tax: int = 0) -> dict[str, Union[float, str]]:
+    result = data
+
+    revenue: int = 0
+    for key, value in result.items():
+        if 'tittle' not in key:
+            revenue += value
+
+    result['revenue'] = revenue
+    result['tax'] = revenue * (tax / 100)
+
+    result = quarter_identifier(result)
+    result = month_sums(result)
+
+    return result
+
+
+@logger.catch
+def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]], list[Union[float, str]]]:
+    data_frame = pd.read_excel(prro_file)
+
+    columns = data_frame.columns.values.tolist()
+
+    test = data_frame[columns[1]].values.tolist()
+
+    if 'Дата' in columns[0]:
+        date_column = data_frame[columns[0]].values.tolist()
+
+        for row_num, row in enumerate(date_column):
+            if type(row) is str:
+                if re.search(r'\d*-\d*-\d* \d*:\d*:\d*', row):
+                    year, month, day = row.split(' ')[0].split('-')
+                    date = f'{day}.{month}.{year}'
+                    date_column[row_num] = date
+
+        cash_column = data_frame[columns[31]].values.tolist()
+
+        for row_num, row in enumerate(cash_column):
+            if 'Готівка' in row:
+                cash_column[row_num] = 1
+            else:
+                cash_column[row_num] = 0
+
+        sum_product = data_frame[columns[8]].values.tolist()
+
+        return date_column, cash_column, sum_product
+
+    elif '#' in data_frame[columns[1]].values.tolist()[0]:
+        date_column = data_frame[columns[4]].values.tolist()
+        for row_num, row in enumerate(date_column):
+            if type(row) is str:
+                if re.search(r'\d*-\d*-\d* \d*:\d*:\d*', row):
+                    year, month, day = row.split(' ')[0].split('-')
+                    date = f'{day}.{month}.{year}'
+                    date_column[row_num] = date
+
+        cash_column = data_frame[columns[6]].values.tolist()
+
+        sum_product = data_frame[columns[16]].values.tolist()
+
+        return date_column, cash_column, sum_product
+
+    elif 'Адреса каси' in columns[0]:
+        date_column = data_frame[columns[1]].values.tolist()
+        for row_num, row in enumerate(date_column):
+            if type(row) is str:
+                if re.search(r'\d*-\d*-\d* \d*:\d*:\d*', row):
+                    year, month, day = row.split(' ')[0].split('-')
+                    date = f'{day}.{month}.{year}'
+                    date_column[row_num] = date
+
+        cash_column = data_frame[columns[18]].values.tolist()
+        for row_num, row in enumerate(cash_column):
+            if 'Готівка' in row:
+                cash_column[row_num] = 1
+            else:
+                cash_column[row_num] = 0
+
+        sum_product = data_frame[columns[19]].values.tolist()
+
+        return date_column, cash_column, sum_product
+
+
+@logger.catch
+def process_prro(prro_file: io.FileIO, data: dict[str, Union[float, str]]) -> dict[str, Union[float, str]]:
+    result = data
+    date_column, cash_column, sum_product = parce_prro(prro_file)
+
+    for date_cell, cash_cell, sum_cell in zip(date_column, cash_column, sum_product):
+        if check_date(date_cell):
+            if type(cash_cell) is str:
+                cash_cell = float(cash_cell.replace(' ', '').replace(',', '.'))
+
+            if type(sum_cell) is str:
+                sum_cell = float(sum_cell.replace(' ', '').replace(',', '.'))
+
+            if cash_cell > 0:
+                if date_cell not in result:
+                    result[date_cell] = sum_cell
+                else:
+                    result[date_cell] += sum_cell
+
+    return result
+
+
+@logger.catch
+def get_timesheet_data(file_path: io.FileIO, filename: str,
+                       prro_file: Union[io.FileIO, None] = None) -> tuple[dict[str, Union[float, str]], str]:
     tittle, cells_B, cells_D, cells_F = get_all_cells(file_path, filename)
     timesheet_data, rows = gen_timesheet_data(tittle, cells_B, cells_D, cells_F)
+
+    if prro_file:
+        timesheet_data = process_prro(prro_file, timesheet_data)
+
+    timesheet_data = counting_revenue(timesheet_data)
+
     return timesheet_data, rows
 
 
@@ -346,3 +503,5 @@ if __name__ == '__main__':
                      'Відшкодування за еквайринг “шаурма сити”: 7 операцій на суму 1150.00 грн, повернень на суму 0.00 грн, комісія банку 19.55 грн.')
     sum = 1130.45
     print(fee + sum)
+
+    print(f'contains: {if_contains_timesheet(["Переказ власних коштів"], "Переказ власних коштiв, Полякова Лiлiя Анатолiївна")}')

@@ -344,7 +344,6 @@ class TableAssembler:
             # FOOTER
             footer_font = Font(name='Arial', bold=True, italic=True, size=10)
 
-            sheet.merge_cells(f'B{str(last_row)}:D{str(last_row)}')
             sheet[f'B{str(last_row)}'].border = border
             sheet[f'B{str(last_row)}'].font = footer_font
             sheet[f'B{str(last_row)}'].alignment = alignment_center
@@ -389,12 +388,12 @@ class TableAssembler:
             sheet[f'L{str(last_row)}'].font = footer_font
             sheet[f'L{str(last_row)}'].alignment = alignment_center
             sheet[f'L{str(last_row)}'] = ''
+            sheet.merge_cells(f'B{str(last_row)}:D{str(last_row)}')
 
             last_row += 1
 
             blue_fill = PatternFill(fill_type='solid', fgColor='9999FF')
 
-            sheet.merge_cells(f'B{str(last_row)}:D{str(last_row)}')
             sheet[f'B{str(last_row)}'].fill = blue_fill
             sheet[f'B{str(last_row)}'].border = border
             sheet[f'B{str(last_row)}'].font = footer_font
@@ -448,6 +447,7 @@ class TableAssembler:
             sheet[f'L{str(last_row)}'].font = footer_font
             sheet[f'L{str(last_row)}'].alignment = alignment_center
             sheet[f'L{str(last_row)}'] = ''
+            sheet.merge_cells(f'B{str(last_row)}:D{str(last_row)}')
 
             last_row += 1
 
@@ -507,6 +507,7 @@ class TableAssembler:
             sheet[f'L{str(last_row)}'].font = footer_font
             sheet[f'L{str(last_row)}'].alignment = alignment_center
             sheet[f'L{str(last_row)}'] = ''
+            sheet.merge_cells(f'B{str(last_row)}:D{str(last_row)}')
 
             last_row += 2
 

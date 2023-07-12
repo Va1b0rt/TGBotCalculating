@@ -3,6 +3,7 @@ import io
 
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.files import JSONStorage
+from aiogram.dispatcher import FSMContext
 from aiogram.types import ContentType, Message, CallbackQuery, ParseMode
 
 from calculating import get_result, get_timesheet_data
@@ -195,6 +196,63 @@ async def handle_document(message: Message):
         await message.answer('Прикреплённый файл не является XLS-файлом')
         logger.warning('Прикреплённый файл не является XLS-файлом')
 
+    await StatesMenu.main.set()
+
+
+@logger.catch
+@dp.message_handler(commands=['bok_prro'], state='*')
+async def start_message_command(message: Message):
+    await StatesMenu.bok_prro.set()
+    await bot.send_message(message.chat.id, 'Ожидаю файл выписки.')
+
+
+@logger.catch
+@dp.message_handler(content_types=ContentType.DOCUMENT, state=StatesMenu.bok_prro)
+async def handle_extract(message: Message, state: FSMContext):
+    document = message.document
+    if document.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
+                              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
+        await message.answer('Получен файл выписки. Обрабатываем...')
+        async with state.proxy() as data:
+            data['extract'] = document
+
+        await StatesMenu.next()
+        await bot.send_message(message.chat.id, 'Ожидаю файл ПРРО')
+
+
+@logger.catch
+@dp.message_handler(content_types=ContentType.DOCUMENT, state=StatesMenu.bok_prro_2)
+async def handle_extract(message: Message, state: FSMContext):
+    prro = message.document
+    if prro.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
+                          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
+        await message.answer('Получен файл ПРРО. Обрабатываем...')
+        async with state.proxy() as data:
+            extract = data['extract']
+
+            extract_file_id = extract.file_id
+            extract_file_info = await bot.get_file(extract_file_id)
+            extract_file_path = extract_file_info.file_path
+            extract_file = await bot.download_file(extract_file_path)
+            extract_file_name = message.document.file_name.replace('.xlsx', '').replace('.xls', '')
+
+            prro_file_id = prro.file_id
+            prro_file_info = await bot.get_file(prro_file_id)
+            prro_file_path = prro_file_info.file_path
+            prro_file = await bot.download_file(prro_file_path)
+
+            result, rows = get_timesheet_data(extract_file, extract_file_name, prro_file)
+
+            ta = TableAssembler(result)
+            result_tables = ta.get_bytes()
+
+            for result in result_tables:
+                await bot.send_document(message.chat.id, types.InputFile(result, filename='RESULT.xls'))
+    else:
+        await message.answer('Прикреплённый файл не является XLS-файлом')
+        logger.warning('Прикреплённый файл не является XLS-файлом')
+
+    await state.finish()
     await StatesMenu.main.set()
 
 

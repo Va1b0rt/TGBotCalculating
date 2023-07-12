@@ -38,7 +38,7 @@ To get started with this project, follow the instructions below.
 To use the project, execute the following command:
 
 ```shell
-python main.py
+python tgBot_Calculating.py
 ```
 
 The program will start polling for new messages from the Telegram Bot API. It handles XLS files that are sent as documents and performs calculations based on the data in the files. If the attached file is not an XLS file, a warning message will be displayed.

@@ -6,7 +6,7 @@ data_files = [
 ]
 
 setup(
-    windows=['main.py'],
+    windows=['tgBot_Calculating.py'],
     options={
         'py2exe': {
             'packages': ['aiogram', 'pandas',
