@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import io
 import math
@@ -9,6 +10,7 @@ import pandas as pd
 from logger import Logger
 from cloud_sheets import Patterns
 from utils.NBU import get_exchange_rate
+from vkursi_API.PersonInfo import get_info
 
 cls_logger = Logger()
 logger = cls_logger.get_logger
@@ -28,7 +30,8 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
         sum_column = data_frame[columns[3]].values.tolist()
         purpose_column = data_frame[columns[5]].values.tolist()
         egrpou_column = data_frame[columns[6]].values.tolist()
-        return tittle, date_column, sum_column, purpose_column, egrpou_column
+        name_column = data_frame[columns[7]].values.tolist()
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
     # TASCOMBANK
     elif data_frame[columns[0]].values.tolist()[0] == '№':
         tittle = re.search(r', (.*) з', columns[0])[1]
@@ -42,8 +45,9 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
 
         purpose_column = data_frame[columns[4]].values.tolist()
         egrpou_column = data_frame[columns[5]].values.tolist()
+        name_column = data_frame[columns[6]].values.tolist()
 
-        return tittle, date_column, sum_column, purpose_column, egrpou_column
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
     # MONO
     elif 'Клієнт:' in columns[0]:
 
@@ -56,10 +60,10 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
 
         sum_column = data_frame[columns[5]].values.tolist()
         purpose_column = data_frame[columns[1]].values.tolist()
-
         egrpou_column = data_frame[columns[3]].values.tolist()
+        name_column = data_frame[columns[2]].values.tolist()
 
-        return tittle, date_column, sum_column, purpose_column, egrpou_column
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
     #  A-BANK
     elif 'Дата' in columns[0]:
         tittle = exclude_non_cyrillic(filename)
@@ -75,8 +79,9 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
                     sum_column[num] = float(match[0])
 
         egrpou_column = data_frame[columns[3]].values.tolist()
+        name_column = data_frame[columns[2]].values.tolist()
 
-        return tittle, date_column, sum_column, purpose_column, egrpou_column
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
 
     #  PRIVAT(currency)
     elif 'Дата та час операції' in data_frame[columns[0]].values.tolist()[1]:
@@ -97,9 +102,16 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
             sum_column = data_frame[columns[7]].values.tolist()
 
         purpose_column = data_frame[columns[6]].values.tolist()
-        egrpou_column = data_frame[columns[4]].values.tolist()
 
-        return tittle, date_column, sum_column, purpose_column, egrpou_column
+        egrpou_column = data_frame[columns[4]].values.tolist()
+        name_column = data_frame[columns[4]].values.tolist()
+        egrpou_pattern = re.compile(r'.*\d\d\d\d\d\d\d\d\d\d')
+        for row_num, egrpou in enumerate(egrpou_column):
+            if type(egrpou_column) is str and egrpou_pattern.search(egrpou):
+                egrpou_column[row_num] = egrpou_pattern.search(egrpou)[1]
+                name_column[row_num] = egrpou.replace(egrpou_column[row_num], '')
+
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
 
     # OSCHAD
     elif 'Назва Клієнта' in columns[0]:
@@ -114,9 +126,9 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
 
         purpose_column = data_frame[columns[19]].values.tolist()
         egrpou_column = data_frame[columns[15]].values.tolist()
+        name_column = data_frame[columns[14]].values.tolist()
 
-        return tittle, date_column, sum_column, purpose_column, egrpou_column
-
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
 
 
 def exclude_non_cyrillic(text):
@@ -213,7 +225,6 @@ def gen_timesheet_data(tittle: str,
                        cells_B: list[str],
                        cells_D: list[Union[str, float]],
                        cells_F: list[str]) -> tuple[dict[str, Union[float, str, list[float]]], str]:
-
     patterns = Patterns()
     result: dict[str, Union[float, str]] = {}
     rows_text: str = ''
@@ -349,15 +360,56 @@ def process_prro(prro_file: io.FileIO, data: dict[str, Union[float, str]]) -> di
 
 
 @logger.catch
-def get_timesheet_data(file_path: io.FileIO, filename: str,
+async def append_fop_sum(data: dict[str, Union[float, str, list[str]]],
+                         list_egrpou: list[str], names: list[str],
+                         sum_cells: list[Union[float, str]],
+                         date_cells: list[str]) -> dict[str, Union[float, str, list[str]]]:
+    egrpous: list[str] = []
+    sum_fops: dict[str, dict[str, list[Union[float, str]]]] = {}
+    result: dict[str, list[str]] = {}
+
+    for egrpou in list_egrpou:
+        if type(egrpou) is str and len(egrpou) == 10:
+            egrpous.append(egrpou)
+
+    fops: dict[str, bool] = await get_info(egrpous)
+
+    for egrpou, name, sum_row, date in zip(list_egrpou, names, sum_cells, date_cells):
+        if type(sum_row) in (float, int) and sum_row > 0:
+            continue
+
+        if type(egrpou) is str and len(egrpou) == 10 and fops[egrpou]:
+            if date.split('.')[1] in sum_fops:
+                if egrpou in sum_fops[date.split('.')[1]]:
+
+                    sum_fops[date.split('.')[1]][egrpou][0] += sum_row
+                else:
+                    sum_fops[date.split('.')[1]][egrpou] = [sum_row, name]
+            else:
+                sum_fops[date.split('.')[1]] = {egrpou: [sum_row, name]}
+
+    for _key in list(sum_fops.keys()):
+        for key, value in sum_fops[_key].items():
+            if _key in result:
+                result[_key].append(f'ЕГРПОУ: {key} СУММА: {value[0]} НАИМЕНОВАНИЕ: {value[1]}')
+            else:
+                result[_key] = [f'ЕГРПОУ: {key} СУММА: {value[0]} НАИМЕНОВАНИЕ: {value[1]}']
+
+    return {**data, **result}
+
+
+@logger.catch
+async def get_timesheet_data(file_path: io.FileIO, filename: str,
                        prro_file: Union[io.FileIO, None] = None) -> tuple[dict[str, Union[float, str]], str]:
-    tittle, cells_B, cells_D, cells_F = get_all_cells(file_path, filename)
-    timesheet_data, rows = gen_timesheet_data(tittle, cells_B, cells_D, cells_F)
+    tittle, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = get_all_cells(file_path, filename)
+    timesheet_data, rows = gen_timesheet_data(tittle, date_cells, sum_cells, purpose_cells)
 
     if prro_file:
         timesheet_data = process_prro(prro_file, timesheet_data)
 
     timesheet_data = counting_revenue(timesheet_data)
+
+    timesheet_data = await append_fop_sum(timesheet_data, egrpou_cells, name_cells, sum_cells, date_cells)
 
     return timesheet_data, rows
 
@@ -431,13 +483,13 @@ def sum_cells(cells_B: list[str], cells_D: list[Union[str, float]], cells_F: lis
 
                 result[cell_B] = round(result[cell_B], 2)
 
-    sum: int = 0
+    sums: int = 0
     for key, value in result.items():
         if key not in ('positives', 'negatives'):
-            sum += value
+            sums += value
 
-    result['revenue'] = sum
-    result['tax'] = sum * (tax / 100)
+    result['revenue'] = sums
+    result['tax'] = sums * (tax / 100)
 
     return result
 
@@ -492,7 +544,7 @@ def get_tittle(raw_tittle: str) -> str:
 
 @logger.catch
 def get_result(file_path: Union[str, io.FileIO]) -> dict[str, Union[float, str]]:
-    tittle, cells_B, cells_D, cells_F = get_all_cells(file_path)
+    tittle, cells_B, cells_D, cells_F, egrpou_cells, name_cells = get_all_cells(file_path)
     result = sum_cells(cells_B, cells_D, cells_F)
     result['tittle'] = get_tittle(tittle)
     return result
@@ -501,7 +553,8 @@ def get_result(file_path: Union[str, io.FileIO]) -> dict[str, Union[float, str]]
 if __name__ == '__main__':
     fee = search_fee(['ком бан', 'комісія банку'],
                      'Відшкодування за еквайринг “шаурма сити”: 7 операцій на суму 1150.00 грн, повернень на суму 0.00 грн, комісія банку 19.55 грн.')
-    sum = 1130.45
-    print(fee + sum)
+    sums = 1130.45
+    print(fee + sums)
 
-    print(f'contains: {if_contains_timesheet(["Переказ власних коштів"], "Переказ власних коштiв, Полякова Лiлiя Анатолiївна")}')
+    print(
+        f'contains: {if_contains_timesheet(["Переказ власних коштів"], "Переказ власних коштiв, Полякова Лiлiя Анатолiївна")}')

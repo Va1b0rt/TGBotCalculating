@@ -3,6 +3,7 @@ import io
 
 import calendar
 import re
+from typing import Union
 
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
@@ -49,12 +50,13 @@ def get_days_of_month(date: datetime.datetime, month: int) -> list[str]:
 
 
 class TableAssembler:
-    def __init__(self, raw_body: dict[str, float, list[float]]):
+    def __init__(self, raw_body: dict[str, Union[float, str, list[str]]]):
         self.months_count: list[str] = []
         self.raw_body = raw_body
         self.tittle = raw_body['tittle']
         self.workbooks: list[Workbook] = []
         self.set_month_count(raw_body)
+        self.fop_sums: list[list[str]] = []
 
         self.__assemble_workbook()
 
@@ -62,9 +64,13 @@ class TableAssembler:
     def set_month_count(self, raw_body: dict[str, float, list[float]]):
 
         for key in list(raw_body.keys()):
-            if re.search(r'\d*.\d*.\d*', key):
+            if re.search(r'^\d*.\d*.\d*$', key):
                 if key.split('.')[1] not in self.months_count:
                     self.months_count.append(key.split('.')[1])
+
+    @logger.catch
+    def __set_fop_sums(self, fop_sums: list[str]):
+        self.fop_sums.append(fop_sums)
 
     @logger.catch
     def __assemble_workbook(self):
@@ -536,6 +542,8 @@ class TableAssembler:
 
             sheet['M9'].border = Border(left=Side(border_style='thin', color='000000'))
 
+            self.__set_fop_sums(self.raw_body[month])
+
     @logger.catch
     def save(self, filename):
         for num, wb in enumerate(self.workbooks):
@@ -543,12 +551,21 @@ class TableAssembler:
             print(f"Table saved to {self.months_count[num]}_{filename}")
 
     @logger.catch
-    def get_bytes(self) -> list[io.BytesIO]:
-        result: list[io.BytesIO] = []
+    def get_bytes(self) -> tuple[list[io.BytesIO], list[io.BytesIO]]:
+        workbooks_bytes: list[io.BytesIO] = []
         for wb in self.workbooks:
             output = io.BytesIO()
             wb.save(output)
             output.seek(0)
-            result.append(output)
+            workbooks_bytes.append(output)
 
-        return result
+        fop_info_bytes: list[io.BytesIO] = []
+
+        for fop_info in self.fop_sums:
+            output = io.BytesIO()
+            for line in fop_info:
+                output.write(f'{line}\n'.encode('utf-8'))
+            output.seek(0)
+            fop_info_bytes.append(output)
+
+        return workbooks_bytes, fop_info_bytes
