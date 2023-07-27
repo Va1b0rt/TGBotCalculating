@@ -5,12 +5,6 @@ from typing import Union
 import pandas as pd
 import requests
 from requests import Response
-
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
-import undetected_chromedriver
-
 SEARCH_URL = 'https://vkursi.pro/search?q='
 
 
@@ -19,54 +13,8 @@ SEARCH_URL = 'https://vkursi.pro/search?q='
 # driver.maximize_window()
 
 
-def get_chromedriver():
-    chrome_options = webdriver.ChromeOptions()
-    # chrome_options.add_argument(f'{User_Agent}')
-    chrome_options.add_argument("--start-maximized")
-    chrome_options.add_argument("--disable-cache")  # Отключение кэширования
-    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-    # chrome_options.add_argument("--disable-cookies")  # Отключение использования куков
-    chrome_options.add_argument("--headless")
-    _driver = undetected_chromedriver.Chrome(options=chrome_options)
-    return _driver
-
 
 #driver = get_chromedriver()
-
-
-async def if_in_person_info(egrpou: str) -> bool:
-    driver.get(f'{SEARCH_URL}{egrpou}')
-    organization_name = None
-    try:
-        organization_name = driver.find_element(By.CLASS_NAME, 'organization-name')
-    except NoSuchElementException:
-        pass
-
-    try:
-        organization_name = driver.find_element(By.CLASS_NAME, 'title')
-    except NoSuchElementException:
-        pass
-
-    if organization_name:
-        if organization_name:
-            return True
-        else:
-            return False
-    else:
-        return False
-
-
-async def get_info(persons_egrpou: list[str]) -> dict[str, bool]:
-    result = {}
-
-    for egrpou in persons_egrpou:
-        if egrpou in result:
-            continue
-        else:
-            result[egrpou] = await if_in_person_info(egrpou)
-
-    return result
-
 
 async def get_person_info(egrpou: str) -> Union[bool, Response]:
     """ Get personal info in youcontrol.com.ua """
