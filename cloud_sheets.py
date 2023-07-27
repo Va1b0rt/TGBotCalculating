@@ -17,6 +17,7 @@ class Patterns:
     def __init__(self):
         # TIMESHEET
         self.column_A: list[str] = []  # blacklist TIMESHEET
+        self.column_B: list[str] = []  # blacklist negatives
         self.column_C: list[str] = []  # bank fee
 
         self.whitelist: list[str] = []
@@ -38,7 +39,7 @@ class Patterns:
                     self.column_A.append(row[0])
             if row[1]:
                 if row[1] not in IGNORE_LIST:
-                    self.whitelist_minus.append(row[1])
+                    self.column_B.append(row[1])
             if row[2]:
                 if row[2] not in IGNORE_LIST:
                     self.column_C.append(row[2])

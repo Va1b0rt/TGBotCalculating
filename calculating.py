@@ -1,16 +1,18 @@
 import asyncio
 import datetime
 import io
+import itertools
 import math
 import re
 from typing import Union
 
 import pandas as pd
 
+from DB_API import DBClient
+from Exceptions import NotExistsPerson
 from logger import Logger
 from cloud_sheets import Patterns
-from utils.NBU import get_exchange_rate
-from vkursi_API.PersonInfo import get_info
+from vkursi_API.PersonInfo import get_info, if_in_person_info, get_person_info
 
 cls_logger = Logger()
 logger = cls_logger.get_logger
@@ -21,7 +23,7 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
     data_frame = pd.read_excel(file_path)
 
     columns = data_frame.columns.values.tolist()
-    test = data_frame[columns[0]].values.tolist()[0]
+    col0 = data_frame[columns[0]].values.tolist()
 
     #  PRIVAT
     if data_frame[columns[0]].values.tolist()[2] == '№':
@@ -84,7 +86,8 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
         return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
 
     #  PRIVAT(currency)
-    elif 'Дата та час операції' in data_frame[columns[0]].values.tolist()[1]:
+
+    elif type(data_frame[columns[0]].values.tolist()[1]) is str and 'Дата та час операції' in data_frame[columns[0]].values.tolist()[1]:
 
         date_column = data_frame[columns[0]].values.tolist()
         for row_num, row in enumerate(date_column):
@@ -114,7 +117,7 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
         return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
 
     # OSCHAD
-    elif 'Назва Клієнта' in columns[0]:
+    elif type(columns[0]) is str and 'Назва Клієнта' in columns[0]:
         tittle = columns[5]
 
         date_column = data_frame[columns[4]].values.tolist()
@@ -129,6 +132,84 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
         name_column = data_frame[columns[14]].values.tolist()
 
         return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+
+    # UKREXIMBANK
+    elif type(data_frame[columns[0]].values.tolist()[1]) is str and 'УКРСИББАНК' in data_frame[columns[0]].values.tolist()[1]:
+        tittle = data_frame[columns[0]].values.tolist()[3].split(',')[0]
+        owner_egrpou = data_frame[columns[0]].values.tolist()[3].split(',')[1]
+
+        date_column = data_frame[columns[0]].values.tolist()
+        for row_num, row in enumerate(date_column):
+            if type(row) is str:
+                if re.search(r'\d*.\d*.\d*\n\d*:\d*', row):
+                    date_column[row_num] = row.split('\n')[0]
+
+        sum_pattern = re.compile(r'^[\d,\s,]*$')
+        sum_column_deb = data_frame[columns[6]].values.tolist()
+        sum_column_kred = data_frame[columns[11]].values.tolist()
+        for num, deb in enumerate(sum_column_deb):
+            if type(deb) is str and sum_pattern.search(deb) and deb != 'Дебет':
+                sum_column_deb[num] = float(deb.replace(' ', '').replace(',', '.')) * -1
+            elif type(sum_column_kred[num]) is str and sum_pattern.search(sum_column_kred[num]) and sum_column_kred[num] != 'Кредит':
+                sum_column_deb[num] = float(sum_column_kred[num].replace(' ', '').replace(',', '.'))
+
+        purpose_column = data_frame[columns[21]].values.tolist()
+        egrpou_column = data_frame[columns[17]].values.tolist()
+        egrpou_pattern = re.compile(r'ЄДРПОУ (\d*)\n')
+        name_column = data_frame[columns[14]].values.tolist()
+        for num, _ in enumerate(egrpou_column):
+            if type(egrpou_column[num]) is str and egrpou_pattern.search(egrpou_column[num]):
+                egrpou_column[num] = egrpou_pattern.search(egrpou_column[num])[1]
+            name_column[num] = 'Eny'
+
+        sum_column_deb_usd = data_frame[columns[6]].values.tolist()
+        sum_column_equal = data_frame[columns[17]].values.tolist()
+        for num, equal_sum in enumerate(sum_column_equal):
+            if type(sum_column_equal[num]) is str and sum_pattern.search(sum_column_equal[num]) and \
+                    sum_column_equal[num] != 'Еквівалент грн':
+
+                if type(sum_column_deb_usd[num]) is str and sum_pattern.search(sum_column_deb_usd[num]) and \
+                        sum_column_deb_usd[num] != 'Дебет':
+                    sum_column_equal[num] = float(sum_column_equal[num].replace(' ', '').replace(',', '.')) * -1
+                else:
+                    sum_column_equal[num] = float(sum_column_equal[num].replace(' ', '').replace(',', '.'))
+
+        egrpou_column_usd = data_frame[columns[19]].values.tolist()
+        for num, _ in enumerate(egrpou_column_usd):
+            if type(egrpou_column_usd[num]) is str and egrpou_pattern.search(egrpou_column_usd[num]):
+                egrpou_column_usd[num] = egrpou_pattern.search(egrpou_column_usd[num])[1]
+
+        purpose_column_usd = data_frame[columns[23]].values.tolist()
+
+        usd_trigger = False
+
+        for num, date in enumerate(date_column):
+            if type(date) is str and 'USD' in date:
+                usd_trigger = True
+            if usd_trigger:
+                sum_column_deb[num] = sum_column_equal[num]
+                egrpou_column[num] = egrpou_column_usd[num]
+                purpose_column[num] = purpose_column_usd[num]
+
+        # Searching owner
+        for num, egrpou in enumerate(egrpou_column):
+
+            if type(egrpou) == float:
+                continue
+            if egrpou == owner_egrpou or owner_egrpou in purpose_column[num] or search_fop_sums(tittle,
+                                                                                                purpose_column[num]):
+                date_column[num] = float('nan')
+
+        return tittle, date_column, sum_column_deb, purpose_column, egrpou_column, name_column
+
+
+def search_fop_sums(tittle: str, purpose: str) -> bool:
+    words = tittle.lower().replace('фоп', '').split(' ')
+    all_combinations = list(itertools.permutations(words))
+    for combinate in all_combinations:
+        if f'{combinate[0]} {combinate[1]} {combinate[2]}' in purpose.lower() or f'{combinate[0]} {combinate[1][:1]} {combinate[2][:1]}' in purpose.lower() or f'{combinate[0]} {combinate[1][:1]}. {combinate[2][:1]}.' in purpose.lower():
+            return True
+    return False
 
 
 def exclude_non_cyrillic(text):
@@ -300,6 +381,30 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
         sum_product = data_frame[columns[8]].values.tolist()
 
         return date_column, cash_column, sum_product
+    elif 'Адреса каси' in columns[0]:
+        date_column = data_frame[columns[1]].values.tolist()
+        for row_num, row in enumerate(date_column):
+            if type(row) is str:
+                if re.search(r'\d*-\d*-\d* \d*:\d*:\d*', row):
+                    year, month, day = row.split(' ')[0].split('-')
+                    date = f'{day}.{month}.{year}'
+                    date_column[row_num] = date
+            elif type(row) is int:
+                real_timestamp = int(str(row)[:-9])
+                row_datetime = datetime.datetime.fromtimestamp(real_timestamp)
+                date = row_datetime.strftime('%d.%m.%Y')
+                date_column[row_num] = date
+
+        cash_column = data_frame[columns[18]].values.tolist()
+        for row_num, row in enumerate(cash_column):
+            if 'Готівка' in row:
+                cash_column[row_num] = 1
+            else:
+                cash_column[row_num] = 0
+
+        sum_product = data_frame[columns[19]].values.tolist()
+
+        return date_column, cash_column, sum_product
 
     elif '#' in data_frame[columns[1]].values.tolist()[0]:
         date_column = data_frame[columns[4]].values.tolist()
@@ -316,26 +421,6 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
 
         return date_column, cash_column, sum_product
 
-    elif 'Адреса каси' in columns[0]:
-        date_column = data_frame[columns[1]].values.tolist()
-        for row_num, row in enumerate(date_column):
-            if type(row) is str:
-                if re.search(r'\d*-\d*-\d* \d*:\d*:\d*', row):
-                    year, month, day = row.split(' ')[0].split('-')
-                    date = f'{day}.{month}.{year}'
-                    date_column[row_num] = date
-
-        cash_column = data_frame[columns[18]].values.tolist()
-        for row_num, row in enumerate(cash_column):
-            if 'Готівка' in row:
-                cash_column[row_num] = 1
-            else:
-                cash_column[row_num] = 0
-
-        sum_product = data_frame[columns[19]].values.tolist()
-
-        return date_column, cash_column, sum_product
-
 
 @logger.catch
 def process_prro(prro_file: io.FileIO, data: dict[str, Union[float, str]]) -> dict[str, Union[float, str]]:
@@ -348,6 +433,8 @@ def process_prro(prro_file: io.FileIO, data: dict[str, Union[float, str]]) -> di
                 cash_cell = float(cash_cell.replace(' ', '').replace(',', '.'))
 
             if type(sum_cell) is str:
+                if ' / ' in sum_cell:
+                    sum_cell = sum_cell.split(' / ')[0]
                 sum_cell = float(sum_cell.replace(' ', '').replace(',', '.'))
 
             if cash_cell > 0:
@@ -360,10 +447,33 @@ def process_prro(prro_file: io.FileIO, data: dict[str, Union[float, str]]) -> di
 
 
 @logger.catch
+async def get_egrpou_dict(egrpou_list: list[str]) -> dict[str, bool]:
+    result = {}
+
+    for egrpou in egrpou_list:
+        if egrpou in result:
+            continue
+        else:
+            try:
+                person = DBClient().get_person(int(egrpou))
+                is_fop = person.Is_FOP
+                result[egrpou] = is_fop
+            except NotExistsPerson:
+                is_fop = await get_person_info(egrpou)
+                result[egrpou] = is_fop
+                DBClient().add_person(int(egrpou), is_fop)
+
+    return result
+
+
+@logger.catch
 async def append_fop_sum(data: dict[str, Union[float, str, list[str]]],
                          list_egrpou: list[str], names: list[str],
                          sum_cells: list[Union[float, str]],
-                         date_cells: list[str]) -> dict[str, Union[float, str, list[str]]]:
+                         date_cells: list[str],
+                         purpose_cells: list[str]) -> dict[str, Union[float, str, list[str]]]:
+    patterns = Patterns()
+
     egrpous: list[str] = []
     sum_fops: dict[str, dict[str, list[Union[float, str]]]] = {}
     result: dict[str, list[str]] = {}
@@ -372,11 +482,16 @@ async def append_fop_sum(data: dict[str, Union[float, str, list[str]]],
         if type(egrpou) is str and len(egrpou) == 10:
             egrpous.append(egrpou)
 
-    fops: dict[str, bool] = await get_info(egrpous)
+    fops: dict[str, bool] = await get_egrpou_dict(egrpous)
 
-    for egrpou, name, sum_row, date in zip(list_egrpou, names, sum_cells, date_cells):
-        if type(sum_row) in (float, int) and sum_row > 0:
+    for egrpou, name, sum_row, date, purpose in zip(list_egrpou, names, sum_cells, date_cells, purpose_cells):
+        if type(sum_row) in (float, int) and (sum_row > 0 or sum_row != math.nan):
             continue
+
+        if type(purpose) is str:
+            contains, _ = if_contains_timesheet(patterns.column_B, purpose)
+            if contains:
+                continue
 
         if type(egrpou) is str and len(egrpou) == 10 and fops[egrpou]:
             if date.split('.')[1] in sum_fops:
@@ -399,8 +514,8 @@ async def append_fop_sum(data: dict[str, Union[float, str, list[str]]],
 
 
 @logger.catch
-async def get_timesheet_data(file_path: io.FileIO, filename: str,
-                       prro_file: Union[io.FileIO, None] = None) -> tuple[dict[str, Union[float, str]], str]:
+async def get_timesheet_data(file_path: io.FileIO, filename: str, requests_type: str,
+                             prro_file: Union[io.FileIO, None] = None) -> tuple[dict[str, Union[float, str]], str]:
     tittle, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = get_all_cells(file_path, filename)
     timesheet_data, rows = gen_timesheet_data(tittle, date_cells, sum_cells, purpose_cells)
 
@@ -409,7 +524,8 @@ async def get_timesheet_data(file_path: io.FileIO, filename: str,
 
     timesheet_data = counting_revenue(timesheet_data)
 
-    timesheet_data = await append_fop_sum(timesheet_data, egrpou_cells, name_cells, sum_cells, date_cells)
+    if requests_type in ('timesheet', 'bok_prro'):
+        timesheet_data = await append_fop_sum(timesheet_data, egrpou_cells, name_cells, sum_cells, date_cells, purpose_cells)
 
     return timesheet_data, rows
 
@@ -497,7 +613,7 @@ def sum_cells(cells_B: list[str], cells_D: list[Union[str, float]], cells_F: lis
 @logger.catch
 def check_date(string: str) -> bool:
     if type(string) is str:
-        pattern = re.compile(r'\d\d\.\d\d\.\d\d\d\d')
+        pattern = re.compile(r'^\d\d\.\d\d\.\d\d\d\d$')
         match = pattern.search(string)
         if match:
             return True

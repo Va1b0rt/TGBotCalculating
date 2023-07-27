@@ -19,3 +19,11 @@ compression = config.get('LOGGING', 'compression')
 keyfile = config.get('GOOGLE', 'keyfile')
 sheet_url = config.get('GOOGLE', 'sheet_url')
 worksheet = config.get('GOOGLE', 'worksheet')
+
+
+# DataBase
+db_host = config.get('DataBase', 'db_host')
+db_user = config.get('DataBase', 'db_user')
+db_passwd = config.get('DataBase', 'db_passwd')
+database = config.get('DataBase', 'database')
+db_port = config.getint('DataBase', 'db_port')

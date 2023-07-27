@@ -1,0 +1,15 @@
+[Unit]
+Description=Telegram bot 'Calcula'
+After=syslog.target
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/usr/src/tgBot_Calculating/
+ExecStart=/usr/local/bin/python3.10 /usr/src/tgBot_Calculating/tgBot_Calculating.py
+RestartSec=10
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

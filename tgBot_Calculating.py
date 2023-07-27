@@ -62,7 +62,7 @@ async def handle_document(message: Message):
         file_path = file_info.file_path
         file = await bot.download_file(file_path)
         file_name = message.document.file_name.replace('.xlsx', '').replace('.xls', '')
-        result, _ = await get_timesheet_data(file, file_name)
+        result, _ = await get_timesheet_data(file, file_name, 'timesheet')
 
         ta = TableAssembler(result)
         result_tables, result_fops = ta.get_bytes()
@@ -71,8 +71,8 @@ async def handle_document(message: Message):
 
             await bot.send_document(message.chat.id, types.InputFile(result, filename='RESULT.xls'))
 
-        for result in result_fops:
-            await bot.send_document(message.chat.id, types.InputFile(result, filename='RESULT.txt'))
+        if result_fops:
+            await bot.send_document(message.chat.id, types.InputFile(result_fops, filename='RESULT.txt'))
 
     else:
         await message.answer('Прикреплённый файл не является XLS-файлом')
@@ -105,7 +105,7 @@ async def handle_document(message: Message):
         file_path = file_info.file_path
         file = await bot.download_file(file_path)
         file_name = message.document.file_name.replace('.xlsx', '').replace('.xls', '')
-        result, rows = await get_timesheet_data(file, file_name)
+        result, rows = await get_timesheet_data(file, file_name, 'extract')
 
         rows_io = io.BytesIO()
         rows_io.write(rows.encode('utf-8'))
@@ -177,7 +177,7 @@ async def handle_document(message: Message):
         file_path = file_info.file_path
         file = await bot.download_file(file_path)
         file_name = message.document.file_name.replace('.xlsx', '').replace('.xls', '')
-        result, rows = await get_timesheet_data(file, file_name)
+        result, rows = await get_timesheet_data(file, file_name, 'extract')
 
         rows_io = io.BytesIO()
         rows_io.write(rows.encode('utf-8'))
@@ -244,13 +244,16 @@ async def handle_extract(message: Message, state: FSMContext):
             prro_file_path = prro_file_info.file_path
             prro_file = await bot.download_file(prro_file_path)
 
-            result, rows = await get_timesheet_data(extract_file, extract_file_name, prro_file)
+            result, rows = await get_timesheet_data(extract_file, extract_file_name, 'bok_prro', prro_file=prro_file)
 
             ta = TableAssembler(result)
-            result_tables = ta.get_bytes()
+            result_tables, result_fops = ta.get_bytes()
 
-            for result in result_tables:
-                await bot.send_document(message.chat.id, types.InputFile(result, filename='RESULT.xls'))
+            for _result in result_tables:
+                await bot.send_document(message.chat.id, types.InputFile(_result, filename='RESULT.xls'))
+
+            if result_fops:
+                await bot.send_document(message.chat.id, types.InputFile(result_fops, filename='RESULT.txt'))
     else:
         await message.answer('Прикреплённый файл не является XLS-файлом')
         logger.warning('Прикреплённый файл не является XLS-файлом')
