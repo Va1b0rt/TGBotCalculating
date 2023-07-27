@@ -12,7 +12,7 @@ from DB_API import DBClient
 from Exceptions import NotExistsPerson
 from logger import Logger
 from cloud_sheets import Patterns
-from vkursi_API.PersonInfo import get_info, if_in_person_info, get_person_info
+from vkursi_API.PersonInfo import get_person_info
 
 cls_logger = Logger()
 logger = cls_logger.get_logger

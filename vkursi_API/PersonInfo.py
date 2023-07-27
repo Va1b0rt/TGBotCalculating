@@ -16,6 +16,8 @@ SEARCH_URL = 'https://vkursi.pro/search?q='
 
 #driver = get_chromedriver()
 
+
+
 async def get_person_info(egrpou: str) -> Union[bool, Response]:
     """ Get personal info in youcontrol.com.ua """
 
