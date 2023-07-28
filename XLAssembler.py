@@ -69,7 +69,7 @@ class TableAssembler:
         for key in list(self.raw_body.keys()):
             if re.search(r'^\d*.\d*.\d*$', key):
 
-                if self.months_count and key.split('.')[1] if len(key) > 2 else key in self.months_count:
+                if self.months_count and (key.split('.')[1] if len(key) > 2 else key) in self.months_count:
                     continue
 
                 self.months_count.append(key.split('.')[1] if len(key) > 2 else key)

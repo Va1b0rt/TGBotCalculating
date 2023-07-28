@@ -29,6 +29,8 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
     if data_frame[columns[0]].values.tolist()[2] == '№':
         tittle = re.search(r'.*"(.*)".*', data_frame[columns[0]].values.tolist()[0])[1]
         date_column = data_frame[columns[1]].values.tolist()
+        date_column = replace_date(date_column)
+
         sum_column = data_frame[columns[3]].values.tolist()
         purpose_column = data_frame[columns[5]].values.tolist()
         egrpou_column = data_frame[columns[6]].values.tolist()
@@ -39,9 +41,7 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
         tittle = re.search(r', (.*) з', columns[0])[1]
 
         date_column = data_frame[columns[1]].values.tolist()
-        for row_num, date in enumerate(date_column):
-            if type(date) is datetime.datetime:
-                date_column[row_num] = date.strftime('%d.%m.%Y')
+        date_column = replace_date(date_column)
 
         sum_column = data_frame[columns[2]].values.tolist()
 
@@ -59,6 +59,7 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
             if type(row) is str:
                 if re.search(r'\d*.\d*.\d* \d*:\d*:\d*', row):
                     date_column[row_num] = row.split(' ')[0]
+        date_column = replace_date(date_column)
 
         sum_column = data_frame[columns[5]].values.tolist()
         purpose_column = data_frame[columns[1]].values.tolist()
@@ -69,7 +70,10 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
     #  A-BANK
     elif 'Дата' in columns[0]:
         tittle = exclude_non_cyrillic(filename)
+
         date_column = data_frame[columns[0]].values.tolist()
+        date_column = replace_date(date_column)
+
         sum_column = data_frame[columns[7]].values.tolist()
 
         purpose_column = data_frame[columns[6]].values.tolist()
@@ -90,6 +94,8 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
     elif type(data_frame[columns[0]].values.tolist()[1]) is str and 'Дата та час операції' in data_frame[columns[0]].values.tolist()[1]:
 
         date_column = data_frame[columns[0]].values.tolist()
+        date_column = replace_date(date_column)
+
         for row_num, row in enumerate(date_column):
             if type(row) is str:
                 if re.search(r'\d*.\d*.\d* \d*:\d*', row):
@@ -121,6 +127,7 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
         tittle = columns[5]
 
         date_column = data_frame[columns[4]].values.tolist()
+        date_column = replace_date(date_column)
 
         sum_column = data_frame[columns[10]].values.tolist()
         for row_num, row_sum in enumerate(sum_column):
@@ -143,6 +150,7 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
             if type(row) is str:
                 if re.search(r'\d*.\d*.\d*\n\d*:\d*', row):
                     date_column[row_num] = row.split('\n')[0]
+        date_column = replace_date(date_column)
 
         sum_pattern = re.compile(r'^[\d,\s,]*$')
         sum_column_deb = data_frame[columns[6]].values.tolist()
@@ -201,6 +209,15 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
                 date_column[num] = float('nan')
 
         return tittle, date_column, sum_column_deb, purpose_column, egrpou_column, name_column
+
+
+def replace_date(date_column: list[Union[str, datetime.datetime]]) -> list[str]:
+    result = date_column
+    for row_num, date in enumerate(result):
+        if type(date) is datetime.datetime:
+            result[row_num] = date.strftime('%d.%m.%Y')
+
+    return result
 
 
 def search_fop_sums(tittle: str, purpose: str) -> bool:
@@ -485,7 +502,8 @@ async def append_fop_sum(data: dict[str, Union[float, str, list[str]]],
     fops: dict[str, bool] = await get_egrpou_dict(egrpous)
 
     for egrpou, name, sum_row, date, purpose in zip(list_egrpou, names, sum_cells, date_cells, purpose_cells):
-        if type(sum_row) in (float, int) and (sum_row > 0 or sum_row != math.nan):
+
+        if (sum_row > 0 or pd.isna(sum_row)) if type(sum_row) in (float, int) else False:
             continue
 
         if type(purpose) is str:
@@ -667,10 +685,9 @@ def get_result(file_path: Union[str, io.FileIO]) -> dict[str, Union[float, str]]
 
 
 if __name__ == '__main__':
-    fee = search_fee(['ком бан', 'комісія банку'],
-                     'Відшкодування за еквайринг “шаурма сити”: 7 операцій на суму 1150.00 грн, повернень на суму 0.00 грн, комісія банку 19.55 грн.')
-    sums = 1130.45
-    print(fee + sums)
+    test_file_path = r'C:\Users\valbo\Downloads\Telegram Desktop\Для книги\виписка червень (1).xls'
+    test_file_name = 'test_file_name'
 
-    print(
-        f'contains: {if_contains_timesheet(["Переказ власних коштів"], "Переказ власних коштiв, Полякова Лiлiя Анатолiївна")}')
+    result, _ = asyncio.run(get_timesheet_data(test_file_path, test_file_name, 'timesheet'))
+
+    print((result))
