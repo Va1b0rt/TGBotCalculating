@@ -68,7 +68,7 @@ class SettlementPayment:
         for cells in self.sheet.iter_cols(min_col=1, max_col=self.sheet.max_column,
                                           min_row=_start_row, max_row=_start_row):
             for cell in cells:
-                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
                 cell.border = border
 
         start_column = 7
@@ -87,8 +87,16 @@ class SettlementPayment:
         self.sheet[f'X{_start_row}'] = f"{x21}"
         self.sheet[f'Y{_start_row}'] = f'{x21}'
         self.sheet[f'Z{_start_row}'] = f'{x21}'
-        self.sheet[f'AA{_start_row}'] = ''
-        self.sheet[f'AB{_start_row}'] = f'{worker.name}\n {worker.ident_IPN}'
+        self.sheet[f'AA{_start_row}'] = '-'
+
+        def replace_n(string: str) -> str:
+            return string.replace('\n', '').replace('\t', '').replace(' ', '')
+
+        if '.' in worker.name:
+            self.sheet[
+                f'AB{_start_row}'] = f'{replace_n(worker.name)}\n{replace_n(worker.ident_IPN)}'
+        else:
+            self.sheet[f'AB{_start_row}'] = f'{worker.name.split(" ")[0]}\n{worker.name.split(" ")[1]} {replace_n(worker.name.split(" ")[2])} {replace_n(worker.ident_IPN)}'
 
         self.sheet.row_dimensions[_start_row].height = 36
 

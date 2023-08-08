@@ -60,6 +60,7 @@ class TableAssembler:
         self._set_month_count()
         self._set_years_count()
         self.fop_sums: list[list[str]] = []
+        self.all_months_sum = 0
 
         self.__assemble_workbook()
 
@@ -513,11 +514,13 @@ class TableAssembler:
                 sheet[f'B{str(last_row)}'].alignment = alignment_center
                 sheet[f'B{str(last_row)}'] = f'Наростаючим підсумком за {actual_year} рік:'
 
+                self.all_months_sum += float(self.raw_body['months'][int(month) - 1])
+
                 sheet[f'E{str(last_row)}'].fill = beige_fill
                 sheet[f'E{str(last_row)}'].border = border
                 sheet[f'E{str(last_row)}'].font = footer_font
                 sheet[f'E{str(last_row)}'].alignment = alignment_center
-                sheet[f'E{str(last_row)}'] = self.raw_body['months'][int(month) - 1]
+                sheet[f'E{str(last_row)}'] = self.all_months_sum
 
                 sheet[f'F{str(last_row)}'].fill = beige_fill
                 sheet[f'F{str(last_row)}'].border = border

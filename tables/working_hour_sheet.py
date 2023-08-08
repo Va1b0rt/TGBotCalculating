@@ -20,6 +20,7 @@ class AppearanceOTWHSheet:
     def __init__(self, employer: Employer):
         self.Employer: Employer = employer
         self.creation_date: datetime = datetime.datetime.now()
+        self.start_writing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month, 1)
         self.start_billing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month-1, 1)
         self.end_billing_period: datetime = self._get_last_day_of_month(self.creation_date.year,
                                                                         self.creation_date.month-1)
@@ -125,7 +126,7 @@ class AppearanceOTWHSheet:
             bottom=Side(border_style='thin', color='000000')
         )
 
-        center_alignment = Alignment(horizontal='center', vertical='center')
+        center_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
         days = self._get_days_with_eights(self.start_billing_period.year, self.start_billing_period.month,
                                           worker.working_hours)
@@ -133,7 +134,12 @@ class AppearanceOTWHSheet:
         self._merge(f'A{last_row}:A{last_row + 1}', f'A{last_row}', f'{num+1}')
         self._merge(f'B{last_row}:B{last_row + 1}', f'B{last_row}', f'{num+1}')
         self._merge(f'C{last_row}:C{last_row+1}', f'C{last_row}', worker.sex)
-        self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}', worker.name)
+
+        if '.' in worker.name:
+            self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}', worker.name)
+        else:
+            self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}',
+                                  f'{worker.name.split(" ")[0]}\n{worker.name.split(" ")[1]} {worker.name.split(" ")[2]}')
 
         self.sheet[f'G{last_row}'] = days[0]
         self.sheet[f'H{last_row}'] = days[1]
@@ -155,7 +161,7 @@ class AppearanceOTWHSheet:
         self._merge(f'X{last_row}:X{last_row + 1}', f'X{last_row}', f"={self._sum_days(days)}")
         self._merge(f'AP{last_row}:AP{last_row + 1}', f'AP{last_row}', worker.salary)
 
-        for row in self.sheet.iter_rows(min_row=last_row, max_row=last_row, min_col=1, max_col=42):
+        for row in self.sheet.iter_rows(min_row=last_row-1, max_row=last_row, min_col=1, max_col=42):
             for cell in row:
                 cell.border = border
                 cell.alignment = center_alignment
@@ -192,6 +198,8 @@ class AppearanceOTWHSheet:
             for cell in row:
                 cell.border = border
                 cell.alignment = center_alignment
+        self.sheet.row_dimensions[last_row-1].height = 25
+        self.sheet.row_dimensions[last_row].height = 25
 
     @logger.catch
     def __assemble_workbook(self):
@@ -228,7 +236,7 @@ class AppearanceOTWHSheet:
         self.sheet['B8'].font = Font(name='Arial', bold=False, size=10)
 
         self._merge('G8:U8', 'G8', self.Employer.ident_EDRPOU)
-        self._merge('AJ8:AK9', 'AJ8', self.creation_date.strftime('%d.%m.%Y'))
+        self._merge('AJ8:AK9', 'AJ8',  self.start_writing_period.strftime('%d.%m.%Y'))
         self._merge('AL8:AM8', 'AL8', 'з')
         self._merge('AN8:AO8', 'AN8', 'по')
 
@@ -372,22 +380,22 @@ class AppearanceOTWHSheet:
         self.sheet.column_dimensions['D'].width = 4.64
         self.sheet.column_dimensions['E'].width = 4.45
         self.sheet.column_dimensions['F'].width = 8.77
-        self.sheet.column_dimensions['G'].width = 2.78
-        self.sheet.column_dimensions['H'].width = 2.78
-        self.sheet.column_dimensions['I'].width = 2.78
-        self.sheet.column_dimensions['J'].width = 2.78
-        self.sheet.column_dimensions['K'].width = 2.78
-        self.sheet.column_dimensions['L'].width = 2.78
-        self.sheet.column_dimensions['M'].width = 2.78
-        self.sheet.column_dimensions['N'].width = 2.78
-        self.sheet.column_dimensions['O'].width = 2.78
-        self.sheet.column_dimensions['P'].width = 2.78
-        self.sheet.column_dimensions['Q'].width = 2.78
-        self.sheet.column_dimensions['R'].width = 2.78
-        self.sheet.column_dimensions['S'].width = 2.78
-        self.sheet.column_dimensions['T'].width = 2.78
-        self.sheet.column_dimensions['U'].width = 2.78
-        self.sheet.column_dimensions['V'].width = 2.78
+        self.sheet.column_dimensions['G'].width = 3.2
+        self.sheet.column_dimensions['H'].width = 3.2
+        self.sheet.column_dimensions['I'].width = 3.2
+        self.sheet.column_dimensions['J'].width = 3.2
+        self.sheet.column_dimensions['K'].width = 3.2
+        self.sheet.column_dimensions['L'].width = 3.2
+        self.sheet.column_dimensions['M'].width = 3.2
+        self.sheet.column_dimensions['N'].width = 3.2
+        self.sheet.column_dimensions['O'].width = 3.2
+        self.sheet.column_dimensions['P'].width = 3.2
+        self.sheet.column_dimensions['Q'].width = 3.2
+        self.sheet.column_dimensions['R'].width = 3.2
+        self.sheet.column_dimensions['S'].width = 3.2
+        self.sheet.column_dimensions['T'].width = 3.2
+        self.sheet.column_dimensions['U'].width = 3.2
+        self.sheet.column_dimensions['V'].width = 3.2
         self.sheet.column_dimensions['W'].width = 2.78
         self.sheet.column_dimensions['X'].width = 5.14
         self.sheet.column_dimensions['Y'].width = 4.45
@@ -426,16 +434,16 @@ class AppearanceOTWHSheet:
         self.sheet.row_dimensions[15].height = 16.25
         self.sheet.row_dimensions[16].height = 17.25
         self.sheet.row_dimensions[17].height = 14.75
-        self.sheet.row_dimensions[18].height = 11.25
-        self.sheet.row_dimensions[19].height = 11.25
-        self.sheet.row_dimensions[20].height = 12.75
-        self.sheet.row_dimensions[21].height = 14
-        self.sheet.row_dimensions[22].height = 14
-        self.sheet.row_dimensions[23].height = 12.75
-        self.sheet.row_dimensions[24].height = 12.75
-        self.sheet.row_dimensions[25].height = 11.25
-        self.sheet.row_dimensions[26].height = 11.25
-        self.sheet.row_dimensions[27].height = 12.75
+        #self.sheet.row_dimensions[18].height = 11.25
+        #self.sheet.row_dimensions[19].height = 11.25
+        #self.sheet.row_dimensions[20].height = 12.75
+        #self.sheet.row_dimensions[21].height = 14
+        #self.sheet.row_dimensions[22].height = 14
+        #self.sheet.row_dimensions[23].height = 12.75
+        #self.sheet.row_dimensions[24].height = 12.75
+        #self.sheet.row_dimensions[25].height = 11.25
+        #self.sheet.row_dimensions[26].height = 11.25
+        #self.sheet.row_dimensions[27].height = 12.75
 
 
         for row in self.sheet.iter_rows(min_row=2, max_row=2, min_col=2, max_col=35):

@@ -36,6 +36,52 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
         egrpou_column = data_frame[columns[6]].values.tolist()
         name_column = data_frame[columns[7]].values.tolist()
         return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+    # PRIVAT (NEW)
+    elif "ПРИВАТБАНК" in data_frame[columns[0]].values.tolist()[1]:
+        tittle = re.search(r'Клієнт (.*) ФОП', data_frame[columns[0]].values.tolist()[3])[1]
+        date_column = data_frame[columns[1]].values.tolist()
+        for num, date in enumerate(date_column):
+            if type(date) is str:
+                if '\n' in date:
+                    date_column[num] = date.split('\n')[0]
+
+        sum_column = data_frame[columns[2]].values.tolist()
+        for num, sum_number in enumerate(sum_column):
+            if type(sum_number) is str:
+                minus: bool = True if '-' in sum_number else False
+                _num = ''.join(c for c in sum_number if c.isdecimal())
+                if _num == '':
+                    continue
+
+                if minus:
+                    sum_column[num] = int(_num) * -1
+                else:
+                    sum_column[num] = int(_num)
+
+        purpose_column = data_frame[columns[6]].values.tolist()
+        egrpou_column = data_frame[columns[10]].values.tolist()
+        for num, egrpou in enumerate(egrpou_column):
+            if type(egrpou) is str:
+                if egrpou.split('\n'):
+                    egrpou_column[num] = ''.join(c for c in egrpou.split('\n')[len(egrpou.split('\n'))-1] if c.isdecimal())
+
+        name_column = data_frame[columns[10]].values.tolist()
+        for num, name in enumerate(name_column):
+            if type(name) is str:
+                if re.search(r'(.*\n.*)\n\d{10}', name):
+                    name_column[num] = re.search(r'(.*\n.*)\n\d{10}', name)[1]
+                elif re.search(r'(.*\n.*)\d{10}', name):
+                    name_column[num] = re.search(r'(.*\n.*)\d{10}', name)[1]
+                elif re.search(r'(.*\n.*)\d{8}', name):
+                    name_column[num] = re.search(r'(.*\n.*)\d{8}', name)[1]
+
+                if 'ФОП' in name:
+                    name_column[num] = name_column[num].replace('ФОП', '')
+
+                name_column[num] = name_column[num].replace('\n', ' ')
+
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+
     # TASCOMBANK
     elif data_frame[columns[0]].values.tolist()[0] == '№':
         tittle = re.search(r', (.*) з', columns[0])[1]
@@ -78,11 +124,11 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
 
         purpose_column = data_frame[columns[6]].values.tolist()
 
-        for num, purpose in enumerate(purpose_column):
-            if 'Відшкодування за еквайринг' in purpose:
-                match = re.search(r'\d+\.\d+', purpose)
-                if match:
-                    sum_column[num] = float(match[0])
+        #for num, purpose in enumerate(purpose_column):
+        #    if 'Відшкодування за еквайринг' in purpose:
+        #        match = re.search(r'\d+\.\d+', purpose)
+        #        if match:
+        #            sum_column[num] = float(match[0])
 
         egrpou_column = data_frame[columns[3]].values.tolist()
         name_column = data_frame[columns[2]].values.tolist()
@@ -420,7 +466,7 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
 
         cash_column = data_frame[columns[18]].values.tolist()
         for row_num, row in enumerate(cash_column):
-            if 'Готівка' in row:
+            if type(row) is str and 'Готівка' in row:
                 cash_column[row_num] = 1
             else:
                 cash_column[row_num] = 0
