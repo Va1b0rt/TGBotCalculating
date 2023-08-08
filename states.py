@@ -9,3 +9,4 @@ class StatesMenu(StatesGroup):
     extract_test = State()
     bok_prro = State()
     bok_prro_2 = State()
+    test_state = State()

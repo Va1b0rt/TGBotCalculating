@@ -256,6 +256,12 @@ def splitter(patterns: str) -> list[str]:
 def if_contains_timesheet(patterns: list[str], string: str) -> tuple[bool, str]:
     for patterns_cont in patterns:
         for pattern in splitter(patterns_cont):
+            if pattern.lower() == 'поповнення' and 'поповнення' in string.lower():
+                if 'від' in string.lower():
+                    return False, ''
+                else:
+                    return True, pattern
+
             if pattern.lower() in string.lower():
                 return True, pattern
 

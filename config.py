@@ -19,6 +19,8 @@ compression = config.get('LOGGING', 'compression')
 keyfile = config.get('GOOGLE', 'keyfile')
 sheet_url = config.get('GOOGLE', 'sheet_url')
 worksheet = config.get('GOOGLE', 'worksheet')
+workers_sheet = config.get('GOOGLE', 'workers_sheet')
+workers_worksheet = config.get('GOOGLE', 'workers_worksheet')
 
 
 # DataBase
