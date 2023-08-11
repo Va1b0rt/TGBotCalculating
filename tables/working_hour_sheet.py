@@ -1,6 +1,5 @@
 import io
 import datetime
-from typing import Union
 
 import calendar
 from openpyxl import Workbook
@@ -23,7 +22,7 @@ class AppearanceOTWHSheet:
         self.start_writing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month, 1)
         self.start_billing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month-1, 1)
         self.end_billing_period: datetime = self._get_last_day_of_month(self.creation_date.year,
-                                                                        self.creation_date.month-1)
+                                                                        self.creation_date.month)
 
         self.workbook: Workbook = Workbook()
         self.sheet: Worksheet = Worksheet('')

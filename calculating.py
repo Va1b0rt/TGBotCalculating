@@ -49,14 +49,15 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
         for num, sum_number in enumerate(sum_column):
             if type(sum_number) is str:
                 minus: bool = True if '-' in sum_number else False
-                _num = ''.join(c for c in sum_number if c.isdecimal())
+                num_string = sum_number.replace(',', '.')
+                _num = ''.join(c for c in num_string if c.isdecimal() or '.' in c)
                 if _num == '':
                     continue
 
                 if minus:
-                    sum_column[num] = int(_num) * -1
+                    sum_column[num] = float(_num) * -1
                 else:
-                    sum_column[num] = int(_num)
+                    sum_column[num] = float(_num)
 
         purpose_column = data_frame[columns[6]].values.tolist()
         egrpou_column = data_frame[columns[10]].values.tolist()

@@ -135,9 +135,6 @@ class TableAssembler:
                 sheet.row_dimensions[9].height = 35
                 sheet.row_dimensions[10].height = 25
                 sheet.row_dimensions[11].height = 70
-                sheet.row_dimensions[44].height = 70
-                sheet.row_dimensions[45].height = 70
-                sheet.row_dimensions[46].height = 70
 
                 # HEADER
                 sheet['B1'] = self.tittle
@@ -398,6 +395,9 @@ class TableAssembler:
                 # FOOTER
                 footer_font = Font(name='Arial', bold=True, italic=True, size=10)
 
+
+                sheet.row_dimensions[last_row].height = 70
+
                 sheet[f'B{str(last_row)}'].border = border
                 sheet[f'B{str(last_row)}'].font = footer_font
                 sheet[f'B{str(last_row)}'].alignment = alignment_center
@@ -447,6 +447,9 @@ class TableAssembler:
                 last_row += 1
 
                 blue_fill = PatternFill(fill_type='solid', fgColor='9999FF')
+
+
+                sheet.row_dimensions[last_row].height = 70
 
                 sheet[f'B{str(last_row)}'].fill = blue_fill
                 sheet[f'B{str(last_row)}'].border = border
@@ -506,6 +509,8 @@ class TableAssembler:
                 last_row += 1
 
                 beige_fill = PatternFill(fill_type='solid', fgColor='FFFFCC')
+
+                sheet.row_dimensions[last_row].height = 70
 
                 sheet.merge_cells(f'B{str(last_row)}:D{str(last_row)}')
                 sheet[f'B{str(last_row)}'].fill = beige_fill
@@ -612,7 +617,7 @@ class TableAssembler:
             output.seek(0)
             workbooks_bytes.append(output)
 
-        if len(self.fop_sums) > 2:
+        if len(self.fop_sums) > 0:
 
             fop_info_bytes: io.BytesIO = io.BytesIO()
 
