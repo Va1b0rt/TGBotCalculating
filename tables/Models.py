@@ -8,6 +8,7 @@ class Worker(BaseModel):
     salary: str
     working_hours: str
     ident_IPN: str
+    employment_date: str
 
 
 class Employer(BaseModel):
