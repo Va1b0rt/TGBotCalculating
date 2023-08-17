@@ -30,7 +30,7 @@ class AppearanceOTWHSheet:
         self.__assemble_workbook()
 
     @logger.catch
-    def _merge(self, cells, cell, text, alignment=Alignment(horizontal='center', vertical='center'),
+    def _merge(self, cells, cell, text, alignment=Alignment(horizontal='center', vertical='center', wrap_text=True),
                font=Font(name='Arial', size=9)):
         self.sheet.merge_cells(cells)
         self.sheet[cell].value = text
@@ -218,7 +218,7 @@ class AppearanceOTWHSheet:
 
         self._merge('AM1:AP3', 'AM1',
                     'Типова форма № П-5\nЗАТВЕРДЖЕНО\nНаказ Держкомстату України\n05.12.2008  № 489',
-                    alignment=Alignment(horizontal='left', vertical='center'))
+                    alignment=Alignment(horizontal='left', vertical='center', ))
 
         self._merge('B2:AI2', 'B2', self.Employer.name)
 

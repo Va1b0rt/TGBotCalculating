@@ -23,7 +23,7 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
     data_frame = pd.read_excel(file_path)
 
     columns = data_frame.columns.values.tolist()
-    col0 = data_frame[columns[0]].values.tolist()
+    col0 = ''
 
     #  PRIVAT
     if data_frame[columns[0]].values.tolist()[2] == '№':
@@ -37,7 +37,7 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
         name_column = data_frame[columns[7]].values.tolist()
         return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
     # PRIVAT (NEW)
-    elif "ПРИВАТБАНК" in data_frame[columns[0]].values.tolist()[1]:
+    elif type(data_frame[columns[0]].values.tolist()[1]) is str and "ПРИВАТБАНК" in data_frame[columns[0]].values.tolist()[1]:
         tittle = re.search(r'Клієнт (.*) ФОП', data_frame[columns[0]].values.tolist()[3])[1]
         date_column = data_frame[columns[1]].values.tolist()
         for num, date in enumerate(date_column):
@@ -256,6 +256,76 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
                 date_column[num] = float('nan')
 
         return tittle, date_column, sum_column_deb, purpose_column, egrpou_column, name_column
+    # Mono
+    elif type(columns[0]) is str and 'ФОП  ' in columns[0]:
+        tittle_pattern = re.compile(r'ФОП  (.*),')
+        tittle = tittle_pattern.search(columns[0])[1]
+
+        date_column = data_frame[columns[0]].values.tolist()
+
+        sum_column = data_frame[columns[7]].values.tolist()
+
+        purpose_column = data_frame[columns[3]].values.tolist()
+
+        egrpou_column = data_frame[columns[5]].values.tolist()
+
+        name_column = data_frame[columns[4]].values.tolist()
+
+        owner_egrpou = ''
+
+        for name, egrpou in zip(name_column, egrpou_column):
+            if tittle in name:
+                owner_egrpou = egrpou
+                break
+
+        ## Searching owner
+        #for num, egrpou in enumerate(egrpou_column):
+        #    if type(egrpou) == float:
+        #        continue
+        #    if egrpou == owner_egrpou:
+        #        date_column[num] = float('nan')
+#
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+
+    elif type(data_frame[columns[11]].values.tolist()[3]) is str and 'АТ "КРЕДІ АГРІКОЛЬ БАНК"' in data_frame[columns[11]].values.tolist()[3]:
+        tittle = data_frame[columns[3]].values.tolist()[3]
+
+        date_column = data_frame[columns[0]].values.tolist()
+        for num, date in enumerate(date_column):
+            if type(date) is str and ' ' in date:
+                date_column[num] = date.split(' ')[0]
+
+        sum_column = data_frame[columns[9]].values.tolist()
+        for num, deb_sum in enumerate(data_frame[columns[8]].values.tolist()):
+            if type(deb_sum) is float and not math.isnan(deb_sum):
+                sum_column[num] = deb_sum * -1
+
+        purpose_column = data_frame[columns[10]].values.tolist()
+
+        egrpou_column = data_frame[columns[7]].values.tolist()
+
+        name_column = data_frame[columns[4]].values.tolist()
+        for num, date in enumerate(date_column):
+            if check_date(date):
+                name_column[num] = data_frame[columns[4]].values.tolist()[num+1]
+
+        owner_egrpou = ''
+
+        for num, egrpou in enumerate(egrpou_column):
+            if type(egrpou) is str and num > 15:
+                name = name_column[num + 1]
+                if tittle in name:
+                    owner_egrpou = egrpou
+                    break
+
+        ## Searching owner
+        #for num, egrpou in enumerate(egrpou_column):
+        #    if type(egrpou) == float:
+        #        continue
+        #    if egrpou == owner_egrpou:
+        #        date_column[num] = float('nan')
+#
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
 
 
 def replace_date(date_column: list[Union[str, datetime.datetime]]) -> list[str]:
@@ -476,6 +546,13 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
 
         return date_column, cash_column, sum_product
 
+    elif 'Облік і контроль кас' in columns[0]:
+        date_column = data_frame[columns[3]].values.tolist()
+        cash_column = data_frame[columns[5]].values.tolist()
+        sum_product = data_frame[columns[4]].values.tolist()
+
+        return date_column, cash_column, sum_product
+
     elif '#' in data_frame[columns[1]].values.tolist()[0]:
         date_column = data_frame[columns[4]].values.tolist()
         for row_num, row in enumerate(date_column):
@@ -565,6 +642,8 @@ async def append_fop_sum(data: dict[str, Union[float, str, list[str]]],
                 continue
 
         if type(egrpou) is str and len(egrpou) == 10 and fops[egrpou]:
+            if not check_date(date):
+                continue
             if date.split('.')[1] in sum_fops:
                 if egrpou in sum_fops[date.split('.')[1]]:
 

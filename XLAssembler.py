@@ -75,6 +75,9 @@ class TableAssembler:
 
                 self.months_count.append(key.split('.')[1] if len(key) > 2 else key)
 
+        self.months_count = sorted(self.months_count, key=lambda x: int(x))
+
+
     @logger.catch
     def _set_years_count(self):
         for key in list(self.raw_body.keys()):
@@ -537,7 +540,7 @@ class TableAssembler:
                 sheet[f'G{str(last_row)}'].border = border
                 sheet[f'G{str(last_row)}'].font = footer_font
                 sheet[f'G{str(last_row)}'].alignment = alignment_center
-                sheet[f'G{str(last_row)}'] = self.raw_body['months'][int(month) - 1]
+                sheet[f'G{str(last_row)}'] = self.all_months_sum
 
                 sheet[f'H{str(last_row)}'].fill = beige_fill
                 sheet[f'H{str(last_row)}'].border = border
@@ -555,7 +558,7 @@ class TableAssembler:
                 sheet[f'J{str(last_row)}'].border = border
                 sheet[f'J{str(last_row)}'].font = footer_font
                 sheet[f'J{str(last_row)}'].alignment = alignment_center
-                sheet[f'J{str(last_row)}'] = self.raw_body['months'][int(month) - 1]
+                sheet[f'J{str(last_row)}'] = self.all_months_sum
 
                 sheet[f'K{str(last_row)}'].fill = beige_fill
                 sheet[f'K{str(last_row)}'].border = border

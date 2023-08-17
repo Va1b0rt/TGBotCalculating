@@ -90,7 +90,7 @@ class SettlementPayment:
         self.sheet[f'AA{_start_row}'] = '-'
 
         def replace_n(string: str) -> str:
-            return string.replace('\n', '').replace('\t', '').replace(' ', '')
+            return string.replace('\n', '').replace('\t', '') #.replace(' ', '')
 
         if '.' in worker.name:
             self.sheet[
@@ -142,6 +142,7 @@ class SettlementPayment:
         self.sheet['W14'] = 'Виплачено'
 
         self.sheet['A15'] = '№'
+        self.sheet['A15'].alignment = Alignment(horizontal='center', vertical='center')
         self.sheet['B15'] = 'Табельний'
         self.sheet['C15'] = 'Категорія'
         self.sheet['D15'] = 'Професія,'
@@ -218,7 +219,11 @@ class SettlementPayment:
 
         start_column = 1
 
-        for column in range(start_column, self.sheet.max_column + 1):
+        for row in self.sheet.iter_rows(min_row=12, max_row=20, min_col=1, max_col=self.sheet.max_column):
+            for cell in row:
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+
+        for column in range(start_column, self.sheet.max_column):
             cell = self.sheet.cell(row=20, column=column)
             cell.value = column - start_column + 1
             cell.alignment = Alignment(horizontal='center', vertical='center')
