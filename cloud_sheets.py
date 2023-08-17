@@ -80,7 +80,10 @@ class Employers:
                                       job_title=self.data[id_row][20],
                                       salary=self.data[id_row][21],
                                       working_hours=self.data[id_row][22],
-                                      ident_IPN=self.data[id_row][26]))
+                                      ident_IPN=self.data[id_row][26],
+                                      employment_date=self.data[id_row][27]
+                                      )
+                               )
         return workers
 
     def _fill_employers(self):

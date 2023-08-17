@@ -62,7 +62,8 @@ class SettlementPayment:
         self.sheet[f'A{_start_row}'] = f'{num+1}'
         self.sheet[f'B{_start_row}'] = f'{num+1}'
         self.sheet[f'D{_start_row}'] = f'{worker.job_title}'
-        self.sheet[f'E{_start_row}'] = f'{sum(AppearanceOTWHSheet._get_days_with_eights(self.start_billing_period.year, self.start_billing_period.month, worker.working_hours, not_x=True))}'
+        employment_date = datetime.datetime.strptime(worker.employment_date, '%d.%m.%Y')
+        self.sheet[f'E{_start_row}'] = f'{sum(AppearanceOTWHSheet._get_days_with_eights(self.start_billing_period.year, self.start_billing_period.month, worker.working_hours, employment_date, not_x=True))}'
         self.sheet[f'F{_start_row}'] = f'{worker.salary}'
 
         for cells in self.sheet.iter_cols(min_col=1, max_col=self.sheet.max_column,

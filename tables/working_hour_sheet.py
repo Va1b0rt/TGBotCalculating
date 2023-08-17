@@ -16,11 +16,12 @@ logger = cls_logger.get_logger
 
 class AppearanceOTWHSheet:
     """SHEETS FOR THE APPEARANCE OF THE WORKING HOUR"""
+
     def __init__(self, employer: Employer):
         self.Employer: Employer = employer
         self.creation_date: datetime = datetime.datetime.now()
         self.start_writing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month, 1)
-        self.start_billing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month-1, 1)
+        self.start_billing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month - 1, 1)
         self.end_billing_period: datetime = self._get_last_day_of_month(self.creation_date.year,
                                                                         self.creation_date.month)
 
@@ -45,22 +46,31 @@ class AppearanceOTWHSheet:
 
     @staticmethod
     def _get_last_day_of_month(year, month):
-        num_days = calendar.monthrange(year, month-1)[1]
-        return datetime.date(year, month-1, num_days)
+        num_days = calendar.monthrange(year, month - 1)[1]
+        return datetime.date(year, month - 1, num_days)
 
     @staticmethod
-    def _get_days_with_eights(year, month, working_hours, not_x=False):
+    def _get_days_with_eights(year: int, month: int, working_hours, employment_date: datetime, not_x=False):
         # Определяем количество дней в месяце
         num_days = calendar.monthrange(year, month)[1]
 
+        def _until_this_day(day: int, hiring_day: int, _month: int, hiring_month: int) -> bool:
+            if year == employment_date.year and month == hiring_month and day < hiring_day:
+                return False
+            if year == employment_date.year and month < hiring_month:
+                return False
+            return True
+
+        until_this_day = lambda day, hiring_day, _month, hiring_month: False if (month == hiring_month and day < hiring_day) or month < hiring_month else True
+
         if not_x:
-            days_data = (int(working_hours) if day.weekday() < 5 else 0 for day in
+            days_data = (int(working_hours) if day.weekday() < 5 and _until_this_day(day.day, employment_date.day,
+                                                                                     month, employment_date.month) else 0 for day in
                          (datetime.date(year, month, day_num) for day_num in range(1, num_days + 1)))
             return tuple(days_data)
 
         # Создаем кортеж для хранения данных
-        days_data = (f'{working_hours}' if day.weekday() < 5 else 'x' for day in
-                     (datetime.date(year, month, day_num) for day_num in range(1, num_days + 1)))
+        days_data = (f'{working_hours}' if day.weekday() < 5 and _until_this_day(day.day, employment_date.day, month, employment_date.month) else 'x' for day in (datetime.date(year, month, day_num) for day_num in range(1, num_days + 1)))
 
         return tuple(days_data)
 
@@ -108,10 +118,18 @@ class AppearanceOTWHSheet:
         result = 0
         for day in days:
             if day != 'x':
+                result += 1
+        return result
+
+    @logger.catch
+    def _sum_hours(self, days: tuple[str]) -> int:
+        result = 0
+        for day in days:
+            if day != 'x':
                 result += int(day)
         return result
 
-    def _fill_table(self, num,  worker: Worker, row_num: int):
+    def _fill_table(self, num, worker: Worker, row_num: int):
         last_row = row_num
 
         border = Border(
@@ -127,12 +145,13 @@ class AppearanceOTWHSheet:
 
         center_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
+        employment_date = datetime.datetime.strptime(worker.employment_date, '%d.%m.%Y')
         days = self._get_days_with_eights(self.start_billing_period.year, self.start_billing_period.month,
-                                          worker.working_hours)
+                                          worker.working_hours, employment_date)
 
-        self._merge(f'A{last_row}:A{last_row + 1}', f'A{last_row}', f'{num+1}')
-        self._merge(f'B{last_row}:B{last_row + 1}', f'B{last_row}', f'{num+1}')
-        self._merge(f'C{last_row}:C{last_row+1}', f'C{last_row}', worker.sex)
+        self._merge(f'A{last_row}:A{last_row + 1}', f'A{last_row}', f'{num + 1}')
+        self._merge(f'B{last_row}:B{last_row + 1}', f'B{last_row}', f'{num + 1}')
+        self._merge(f'C{last_row}:C{last_row + 1}', f'C{last_row}', worker.sex)
 
         if '.' in worker.name:
             self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}', worker.name)
@@ -156,11 +175,11 @@ class AppearanceOTWHSheet:
         self.sheet[f'T{last_row}'] = days[13]
         self.sheet[f'U{last_row}'] = days[14]
         self.sheet[f'V{last_row}'] = 'x'
-        self._merge(f'W{last_row}:W{last_row + 1}', f'W{last_row}', '21')
-        self._merge(f'X{last_row}:X{last_row + 1}', f'X{last_row}', f"={self._sum_days(days)}")
+        self._merge(f'W{last_row}:W{last_row + 1}', f'W{last_row}', f'{self._sum_days(days)}')
+        self._merge(f'X{last_row}:X{last_row + 1}', f'X{last_row}', f"{self._sum_hours(days)}")
         self._merge(f'AP{last_row}:AP{last_row + 1}', f'AP{last_row}', worker.salary)
 
-        for row in self.sheet.iter_rows(min_row=last_row-1, max_row=last_row, min_col=1, max_col=42):
+        for row in self.sheet.iter_rows(min_row=last_row - 1, max_row=last_row, min_col=1, max_col=42):
             for cell in row:
                 cell.border = border
                 cell.alignment = center_alignment
@@ -197,7 +216,7 @@ class AppearanceOTWHSheet:
             for cell in row:
                 cell.border = border
                 cell.alignment = center_alignment
-        self.sheet.row_dimensions[last_row-1].height = 25
+        self.sheet.row_dimensions[last_row - 1].height = 25
         self.sheet.row_dimensions[last_row].height = 25
 
     @logger.catch
@@ -235,7 +254,7 @@ class AppearanceOTWHSheet:
         self.sheet['B8'].font = Font(name='Arial', bold=False, size=10)
 
         self._merge('G8:U8', 'G8', self.Employer.ident_EDRPOU)
-        self._merge('AJ8:AK9', 'AJ8',  self.start_writing_period.strftime('%d.%m.%Y'))
+        self._merge('AJ8:AK9', 'AJ8', self.start_writing_period.strftime('%d.%m.%Y'))
         self._merge('AL8:AM8', 'AL8', 'з')
         self._merge('AN8:AO8', 'AN8', 'по')
 
@@ -433,17 +452,16 @@ class AppearanceOTWHSheet:
         self.sheet.row_dimensions[15].height = 16.25
         self.sheet.row_dimensions[16].height = 17.25
         self.sheet.row_dimensions[17].height = 14.75
-        #self.sheet.row_dimensions[18].height = 11.25
-        #self.sheet.row_dimensions[19].height = 11.25
-        #self.sheet.row_dimensions[20].height = 12.75
-        #self.sheet.row_dimensions[21].height = 14
-        #self.sheet.row_dimensions[22].height = 14
-        #self.sheet.row_dimensions[23].height = 12.75
-        #self.sheet.row_dimensions[24].height = 12.75
-        #self.sheet.row_dimensions[25].height = 11.25
-        #self.sheet.row_dimensions[26].height = 11.25
-        #self.sheet.row_dimensions[27].height = 12.75
-
+        # self.sheet.row_dimensions[18].height = 11.25
+        # self.sheet.row_dimensions[19].height = 11.25
+        # self.sheet.row_dimensions[20].height = 12.75
+        # self.sheet.row_dimensions[21].height = 14
+        # self.sheet.row_dimensions[22].height = 14
+        # self.sheet.row_dimensions[23].height = 12.75
+        # self.sheet.row_dimensions[24].height = 12.75
+        # self.sheet.row_dimensions[25].height = 11.25
+        # self.sheet.row_dimensions[26].height = 11.25
+        # self.sheet.row_dimensions[27].height = 12.75
 
         for row in self.sheet.iter_rows(min_row=2, max_row=2, min_col=2, max_col=35):
             for cell in row:
@@ -466,34 +484,34 @@ class AppearanceOTWHSheet:
                 cell.border = border
 
         # Director row line
-        for row in self.sheet.iter_rows(min_row=last_row-5, max_row=last_row-5, min_col=6, max_col=17):
+        for row in self.sheet.iter_rows(min_row=last_row - 5, max_row=last_row - 5, min_col=6, max_col=17):
             for cell in row:
                 cell.border = bottom_line_border
-        for row in self.sheet.iter_rows(min_row=last_row-5, max_row=last_row-5, min_col=26, max_col=26):
+        for row in self.sheet.iter_rows(min_row=last_row - 5, max_row=last_row - 5, min_col=26, max_col=26):
             for cell in row:
                 cell.border = bottom_line_border
         # Last row linews
-        for row in self.sheet.iter_rows(min_row=last_row-1, max_row=last_row-1, min_col=6, max_col=17):
+        for row in self.sheet.iter_rows(min_row=last_row - 1, max_row=last_row - 1, min_col=6, max_col=17):
             for cell in row:
                 cell.border = bottom_line_border
 
-        for row in self.sheet.iter_rows(min_row=last_row-1, max_row=last_row-1, min_col=26, max_col=37):
+        for row in self.sheet.iter_rows(min_row=last_row - 1, max_row=last_row - 1, min_col=26, max_col=37):
             for cell in row:
                 cell.border = bottom_line_border
 
-        for row in self.sheet.iter_rows(min_row=last_row-1, max_row=last_row-1, min_col=10, max_col=17):
+        for row in self.sheet.iter_rows(min_row=last_row - 1, max_row=last_row - 1, min_col=10, max_col=17):
             for cell in row:
                 cell.border = bottom_line_border
 
-        #self.sheet['F25'].border = bottom_line_border
-        #self.sheet['G25'].border = bottom_line_border
-        #self.sheet['H25'].border = bottom_line_border
-        #self.sheet['Z25'].border = bottom_line_border
-        #self.sheet['AA25'].border = bottom_line_border
-        #self.sheet['AB25'].border = bottom_line_border
-        #self.sheet['AD25'].border = bottom_line_border
-        #self.sheet['AE25'].border = bottom_line_border
-        #self.sheet['AF25'].border = bottom_line_border
+        # self.sheet['F25'].border = bottom_line_border
+        # self.sheet['G25'].border = bottom_line_border
+        # self.sheet['H25'].border = bottom_line_border
+        # self.sheet['Z25'].border = bottom_line_border
+        # self.sheet['AA25'].border = bottom_line_border
+        # self.sheet['AB25'].border = bottom_line_border
+        # self.sheet['AD25'].border = bottom_line_border
+        # self.sheet['AE25'].border = bottom_line_border
+        # self.sheet['AF25'].border = bottom_line_border
 
     def get_bytes(self) -> io.BytesIO:
         output = io.BytesIO()

@@ -387,13 +387,14 @@ def if_contains_timesheet(patterns: list[str], string: str) -> tuple[bool, str]:
 
 @logger.catch
 def search_fee(patterns: list[str], raw_string: str) -> float:
+    fee: float = 0.0
     for pattern in patterns:
         match = re.search(pattern.lower() + r'[., ]*(\d*\.\d*).', raw_string.lower())
 
         if match:
-            return float(match[1])
+            fee += float(match[1])
 
-    return float(0.00)
+    return fee
 
 
 @logger.catch
