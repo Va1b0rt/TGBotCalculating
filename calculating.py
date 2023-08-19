@@ -550,7 +550,7 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
     elif 'Облік і контроль кас' in columns[0]:
         date_column = data_frame[columns[3]].values.tolist()
         cash_column = data_frame[columns[5]].values.tolist()
-        sum_product = data_frame[columns[4]].values.tolist()
+        sum_product = data_frame[columns[5]].values.tolist()
 
         return date_column, cash_column, sum_product
 
