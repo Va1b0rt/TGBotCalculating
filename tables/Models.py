@@ -9,12 +9,16 @@ class Worker(BaseModel):
     working_hours: str
     ident_IPN: str
     employment_date: str
+    birthday: str
+    dismissal: str
 
 
 class Employer(BaseModel):
     name: str
     ident_EDRPOU: str
     workers: list[Worker]
+    residence: str
+    phone: str
 
 
 if __name__ == '__main__':

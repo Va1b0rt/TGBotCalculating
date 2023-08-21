@@ -11,11 +11,11 @@ cls_logger = Logger()
 logger = cls_logger.get_logger
 
 
-class StaffingOrder(Blank_PDF):
+class Recruitment(Blank_PDF):
     def __init__(self, employer: Employer = None, document: io.BytesIO = None):
         # self.Employer: Employer = employer
         self.document: Document = None
-        self._path = r'.\tables\tmp\staffing_order'
+        self._path = r'.\tables\tmp\recruitment'
 
         self.replacement_dict = {
             'FOPNAME': {'text': 'ФОП НАГРУЗИЛОВА АННА АКАКИЕВНА'.upper(),
@@ -53,23 +53,39 @@ class StaffingOrder(Blank_PDF):
                      'font_size': 12,
                      'text_color': RGBColor(0, 0, 0),
                      'bold': False},
-            'SALARY': {'text': '25 000.00',
+            'EMPLNAME': {'text': 'EmplName',
+                         'font': 'Times New Roman',
+                         'font_size': 12,
+                         'text_color': RGBColor(0, 0, 0),
+                         'bold': False},
+            'TITTLE': {'text': 'Tittle',
                        'font': 'Times New Roman',
                        'font_size': 12,
                        'text_color': RGBColor(0, 0, 0),
                        'bold': False},
-            'FOPNLASTNAME': {'text': 'НАГРУЗИЛОВА А.'.upper(),
-                             'font': 'Times New Roman',
-                             'font_size': 12,
+            'EMPLOYMENT_DATE': {'text': 'EMPL Date',
+                                'font': 'Times New Roman',
+                                'font_size': 12,
+                                'text_color': RGBColor(0, 0, 0),
+                                'bold': False},
+            'FOPNLASTNAME': {'text': 'Нагрузлова А.'.upper(),
+                             'font': 'Roboto',
+                             'font_size': 9,
                              'text_color': RGBColor(0, 0, 0),
-                             'bold': True}
+                             'bold': True},
+            'EMPLSHORTNAME': {'text': 'Сотрудникова А.',
+                              'font': 'Roboto',
+                              'font_size': 12,
+                              'text_color': RGBColor(0, 0, 0),
+                              'bold': True}
+
         }
 
 
 if __name__ == "__main__":
-    staff = StaffingOrder()
+    staff = Recruitment()
     staff.load_document(
-        r'./tables/templates/staffing_order_blank.docx')
+        r'./tables/templates/recruitment_blank.docx')
     staff.test_processing()
     staff.save()
     staff.save_as_pdf()

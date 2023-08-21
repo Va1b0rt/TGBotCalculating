@@ -74,14 +74,16 @@ class Employers:
     def _get_workers(self, row_ids: list[int]) -> list[Worker]:
         workers: list[Worker] = []
         for id_row in row_ids:
-            if len(self.data[id_row][17]) > 5:
-                workers.append(Worker(sex=self.data[id_row][18],
-                                      name=self.data[id_row][17],
-                                      job_title=self.data[id_row][20],
-                                      salary=self.data[id_row][21],
-                                      working_hours=self.data[id_row][22],
-                                      ident_IPN=self.data[id_row][26],
-                                      employment_date=self.data[id_row][27]
+            if len(self.data[id_row][16]) > 5:
+                workers.append(Worker(sex=self.data[id_row][17],
+                                      name=self.data[id_row][16],
+                                      job_title=self.data[id_row][19],
+                                      salary=self.data[id_row][20],
+                                      working_hours=self.data[id_row][21],
+                                      ident_IPN=self.data[id_row][25],
+                                      employment_date=self.data[id_row][26],
+                                      birthday=self.data[id_row][21],
+                                      dismissal=self.data[id_row][27]
                                       )
                                )
         return workers
@@ -99,6 +101,8 @@ class Employers:
             workers = self._get_workers(rows)
             self.employers.append(Employer(name=self.data[rows[0]][0],
                                            ident_EDRPOU=self.data[rows[0]][4],
+                                           residence=self.data[rows[0]][7],
+                                           phone=self.data[rows[0]][9],
                                            workers=workers))
 
     def get_employers(self) -> list[Employer]:

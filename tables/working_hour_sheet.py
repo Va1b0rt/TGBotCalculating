@@ -50,7 +50,8 @@ class AppearanceOTWHSheet:
         return datetime.date(year, month - 1, num_days)
 
     @staticmethod
-    def _get_days_with_eights(year: int, month: int, working_hours, employment_date: datetime, not_x=False):
+    def _get_days_with_eights(year: int, month: int, working_hours,
+                              employment_date: datetime, dismissal_date: datetime, not_x=False):
         # Определяем количество дней в месяце
         num_days = calendar.monthrange(year, month)[1]
 
@@ -59,9 +60,11 @@ class AppearanceOTWHSheet:
                 return False
             if year == employment_date.year and month < hiring_month:
                 return False
+            if year == dismissal_date.year and month > dismissal_date.month:
+                return False
+            if year == dismissal_date.year and month == dismissal_date.month and day >= dismissal_date.day:
+                return False
             return True
-
-        until_this_day = lambda day, hiring_day, _month, hiring_month: False if (month == hiring_month and day < hiring_day) or month < hiring_month else True
 
         if not_x:
             days_data = (int(working_hours) if day.weekday() < 5 and _until_this_day(day.day, employment_date.day,
@@ -146,8 +149,14 @@ class AppearanceOTWHSheet:
         center_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
         employment_date = datetime.datetime.strptime(worker.employment_date, '%d.%m.%Y')
+
+        if worker.dismissal == '':
+            dismissal_date = datetime.datetime.strptime('10.10.2099', '%d.%m.%Y')
+        else:
+            dismissal_date = datetime.datetime.strptime(worker.dismissal, '%d.%m.%Y')
         days = self._get_days_with_eights(self.start_billing_period.year, self.start_billing_period.month,
-                                          worker.working_hours, employment_date)
+                                          worker.working_hours, employment_date,
+                                          dismissal_date)
 
         self._merge(f'A{last_row}:A{last_row + 1}', f'A{last_row}', f'{num + 1}')
         self._merge(f'B{last_row}:B{last_row + 1}', f'B{last_row}', f'{num + 1}')
