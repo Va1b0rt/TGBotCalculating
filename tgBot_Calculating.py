@@ -55,31 +55,62 @@ async def button_upload(call: CallbackQuery):
 
 @logger.catch
 @dp.message_handler(content_types=ContentType.DOCUMENT, state=StatesMenu.timesheet_acquiring)
-async def handle_document(message: Message):
+async def handle_document(message: Message, state: FSMContext):
     document = message.document
+    mime = ''
     if document.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
                               'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
         await message.answer('Получен XLS-файл. Обрабатываем...')
-        file_id = document.file_id
-        file_info = await bot.get_file(file_id)
-        file_path = file_info.file_path
-        file = await bot.download_file(file_path)
-        file_name = message.document.file_name.replace('.xlsx', '').replace('.xls', '')
-        result, _ = await get_timesheet_data(file, file_name, 'timesheet')
+        mime = 'xlsx'
+        await generate_timesheet(document, message, mime)
+    elif document.mime_type == 'text/csv' or document.file_name.endswith('.csv'):
+        await StatesMenu.tittle_question.set()
+        await message.answer('Получен CSV-файл. Обрабатываем...')
 
-        ta = TableAssembler(result)
-        result_tables, result_fops = ta.get_bytes()
+        async with state.proxy() as data:
+            data['mime'] = 'csv'
+            data['document'] = document
 
-        for result in result_tables:
-
-            await bot.send_document(message.chat.id, types.InputFile(result, filename='RESULT.xls'))
-
-        if result_fops:
-            await bot.send_document(message.chat.id, types.InputFile(result_fops, filename='RESULT.txt'))
+        await message.answer('Укажите имя владельца выписки.')
 
     else:
-        await message.answer('Прикреплённый файл не является XLS-файлом')
-        logger.warning('Прикреплённый файл не является XLS-файлом')
+        return
+
+
+@logger.catch
+@dp.message_handler(content_types=ContentType.TEXT, state=StatesMenu.tittle_question)
+async def handle_tittle_question(message: Message, state: FSMContext):
+    user_answer = message.text
+
+    async with state.proxy() as data:
+        document = data.get('document')
+        mime = data.get('mime')
+
+    if user_answer and document and mime:
+        await generate_timesheet(document, message, mime, tittle=user_answer)
+    else:
+        await message.answer('Полученные данные неверны.')
+        await StatesMenu.main.set()
+
+
+async def generate_timesheet(document, message, mime, tittle=''):
+    file_id = document.file_id
+    file_info = await bot.get_file(file_id)
+    file_path = file_info.file_path
+    file = await bot.download_file(file_path)
+    file_name = document.file_name.replace('.xlsx', '').replace('.xls', '').replace('.csv', '')
+    result, _ = await get_timesheet_data(file, file_name, 'timesheet', mime, tittle=tittle)
+    ta = TableAssembler(result)
+    result_tables, result_fops = ta.get_bytes()
+    for result in result_tables:
+        await bot.send_document(message.chat.id, types.InputFile(result, filename='RESULT.xls'))
+    if result_fops:
+        await bot.send_document(message.chat.id, types.InputFile(result_fops, filename='RESULT.txt'))
+
+    else:
+        pass
+        #await message.answer('Прикреплённый файл не является XLS-файлом')
+        #logger.warning('Прикреплённый файл не является XLS-файлом')
 
     await StatesMenu.main.set()
 

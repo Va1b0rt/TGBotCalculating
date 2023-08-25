@@ -18,6 +18,56 @@ cls_logger = Logger()
 logger = cls_logger.get_logger
 
 
+def add_delimiters_to_end(csv_data, delimiter=';'):
+    new_csv_data = io.BytesIO()
+
+    # Преобразование объекта io.BytesIO в список строк
+    csv_lines = csv_data.getvalue().decode('cp1251').splitlines()
+
+    # Добавление разделителей в конец строк, где они отсутствуют
+    for line in csv_lines:
+        if not line.endswith(delimiter):
+            line += delimiter
+        new_csv_data.write(line.encode('cp1251') + b'\n')
+
+    new_csv_data.seek(0)  # Перемотка объекта io.BytesIO в начало
+    return new_csv_data
+
+
+def get_all_cells_csv(file_path: io.BytesIO, filename: str, _tittle: str):
+
+    try:
+        data_frame = pd.read_csv(add_delimiters_to_end(file_path), delimiter=';', encoding='cp1251')
+    except UnicodeDecodeError as e:
+        print("UnicodeDecodeError:", e)
+        return
+
+    columns = data_frame.columns.values.tolist()
+
+    if columns[0] == 'ST_NUMB':
+        tittle = _tittle
+        date_column = data_frame['ST_DATE'].values.tolist()
+        for num, date_cell in enumerate(date_column):
+            if type(date_cell) is str and '.' in date_cell:
+                date_tuple = date_cell.split('.')
+                date_column[num] = f'{date_tuple[2]}.{date_tuple[1]}.{date_tuple[0]}'
+
+        sum_column = data_frame['CR'].values.tolist()
+        purpose_column = data_frame['DESCRIPT'].values.tolist()
+        egrpou_column = data_frame['KOR_OKPO'].values.tolist()
+        name_column = data_frame['KOR_NAME'].values.tolist()
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+
+    if columns[0] == 'ЄДРПОУ':
+        tittle = _tittle
+        date_column = data_frame['Дата операції'].values.tolist()
+        sum_column = data_frame['Сума'].values.tolist()
+        purpose_column = data_frame['Призначення платежу'].values.tolist()
+        egrpou_column = data_frame['ЄДРПОУ кореспондента'].values.tolist()
+        name_column = data_frame['Кореспондент'].values.tolist()
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+
+
 @logger.catch
 def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
     data_frame = pd.read_excel(file_path)
@@ -326,6 +376,26 @@ def get_all_cells(file_path: Union[str, io.FileIO], filename: str):
         #        date_column[num] = float('nan')
 #
         return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+    # Mono Valuta
+    elif type(columns[0]) is str and ' Виписка за рахунком' in columns[0]:
+        tittle_pattern = re.compile(r'ФОП (.*),')
+        tittle = tittle_pattern.search(columns[0])[1]
+
+        date_column = data_frame[columns[0]].values.tolist()
+
+        sum_column = data_frame[columns[11]].values.tolist()
+
+        for num, _sum in enumerate(sum_column):
+            if _sum == '-':
+                sum_column[num] = 0.0
+
+        purpose_column = data_frame[columns[3]].values.tolist()
+
+        egrpou_column = data_frame[columns[5]].values.tolist()
+        name_column = data_frame[columns[4]].values.tolist()
+
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+
 
 
 def replace_date(date_column: list[Union[str, datetime.datetime]]) -> list[str]:
@@ -665,9 +735,15 @@ async def append_fop_sum(data: dict[str, Union[float, str, list[str]]],
 
 
 @logger.catch
-async def get_timesheet_data(file_path: io.FileIO, filename: str, requests_type: str,
-                             prro_file: Union[io.FileIO, None] = None) -> tuple[dict[str, Union[float, str]], str]:
-    tittle, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = get_all_cells(file_path, filename)
+async def get_timesheet_data(file_path: io.FileIO, filename: str, requests_type: str, mime_type: str,
+                             prro_file: Union[io.FileIO, None] = None,
+                             tittle: str = '') -> tuple[dict[str, Union[float, str]], str]:
+    if mime_type == 'xlsx':
+        tittle, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = get_all_cells(file_path, filename)
+    else:
+        tittle, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = get_all_cells_csv(file_path, filename,
+                                                                                                   tittle)
+
     timesheet_data, rows = gen_timesheet_data(tittle, date_cells, sum_cells, purpose_cells)
 
     if prro_file:
