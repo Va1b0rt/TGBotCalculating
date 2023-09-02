@@ -82,7 +82,7 @@ class Employers:
                                       working_hours=self.data[id_row][21],
                                       ident_IPN=self.data[id_row][25],
                                       employment_date=self.data[id_row][26],
-                                      birthday=self.data[id_row][21],
+                                      birthday=self.data[id_row][22],
                                       dismissal=self.data[id_row][27]
                                       )
                                )

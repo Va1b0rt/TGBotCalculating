@@ -99,7 +99,7 @@ async def generate_timesheet(document, message, mime, tittle=''):
     file_path = file_info.file_path
     file = await bot.download_file(file_path)
     file_name = document.file_name.replace('.xlsx', '').replace('.xls', '').replace('.csv', '')
-    result, _ = await get_timesheet_data(file, file_name, 'timesheet', mime, tittle=tittle)
+    result, _ = await get_timesheet_data(file, file_name, 'timesheet', mime_type=mime, tittle=tittle)
     ta = TableAssembler(result)
     result_tables, result_fops = ta.get_bytes()
     for result in result_tables:

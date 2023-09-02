@@ -132,7 +132,19 @@ class AppearanceOTWHSheet:
                 result += int(day)
         return result
 
+    def _if_employment_later_last_month(self, worker: Worker):
+        today = datetime.date.today()
+        first_day_of_this_month = today.replace(day=1)
+        last_day_of_last_month = first_day_of_this_month - datetime.timedelta(days=1)
+        previous_month = last_day_of_last_month.month
+        if int(worker.employment_date.split('.')[1]) > previous_month:
+            return True
+        return False
+
     def _fill_table(self, num, worker: Worker, row_num: int):
+        if self._if_employment_later_last_month(worker):
+            return True
+
         last_row = row_num
 
         border = Border(
@@ -227,6 +239,8 @@ class AppearanceOTWHSheet:
                 cell.alignment = center_alignment
         self.sheet.row_dimensions[last_row - 1].height = 25
         self.sheet.row_dimensions[last_row].height = 25
+
+        return True
 
     @logger.catch
     def __assemble_workbook(self):
@@ -338,8 +352,9 @@ class AppearanceOTWHSheet:
 
         # Заполняем таблицу
         for num, worker in enumerate(self.Employer.workers):
-            self._fill_table(num, worker, last_row)
-            last_row += 2
+            if_feel = self._fill_table(num, worker, last_row)
+            if if_feel:
+                last_row += 2
 
         last_row += 1
 

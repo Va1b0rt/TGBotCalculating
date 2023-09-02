@@ -49,7 +49,19 @@ class SettlementPayment:
 
         return f'{month} {year}'
 
+    def _if_employment_later_last_month(self, worker: Worker):
+        today = datetime.date.today()
+        first_day_of_this_month = today.replace(day=1)
+        last_day_of_last_month = first_day_of_this_month - datetime.timedelta(days=1)
+        previous_month = last_day_of_last_month.month
+        if int(worker.employment_date.split('.')[1]) > previous_month:
+            return True
+        return False
+
     def _fill_table(self, num: int, worker: Worker, start_row: int):
+        if self._if_employment_later_last_month(worker):
+            return False
+
         _start_row = start_row
 
         border = Border(
@@ -93,6 +105,8 @@ class SettlementPayment:
         self.sheet[f'Y{_start_row}'] = f'{x21}'
         self.sheet[f'Z{_start_row}'] = f'{x21}'
         self.sheet[f'AA{_start_row}'] = '-'
+
+        return False
 
         def replace_n(string: str) -> str:
             return string.replace('\n', '').replace('\t', '') #.replace(' ', '')
@@ -235,10 +249,10 @@ class SettlementPayment:
 
         last_row = 21
 
-
         for num, worker in enumerate(self.Employer.workers):
-            self._fill_table(num, worker, last_row)
-            last_row += 1
+            if_feel = self._fill_table(num, worker, last_row)
+            if if_feel:
+                last_row += 1
 
         last_row += 3
 

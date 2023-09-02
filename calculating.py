@@ -6,6 +6,7 @@ import math
 import re
 from typing import Union
 
+import cchardet
 import pandas as pd
 
 from DB_API import DBClient
@@ -18,34 +19,111 @@ cls_logger = Logger()
 logger = cls_logger.get_logger
 
 
-def add_delimiters_to_end(csv_data, delimiter=';'):
+def detect_encoding(csv_data: io.BytesIO) -> str:
+    detector = cchardet.UniversalDetector()
+
+    # Ensure the bytes_io is at the beginning
+    csv_data.seek(0)
+
+    for line in csv_data:
+        detector.feed(line)
+        if detector.done:
+            break
+
+    detector.close()
+    encoding = detector.result['encoding']
+
+    return encoding
+
+
+def detect_separator(csv_data: io.BytesIO, encoding: str = 'utf-8'):
+    separators = [',', ';', '\t', '|', ':']
+    frequencies = {}
+
+    # Ensure the bytes_io is at the beginning
+    csv_data.seek(0)
+
+    first_line = csv_data.readline().decode(encoding)
+
+    for separator in separators:
+        occurrences = first_line.count(separator)
+        frequencies[separator] = occurrences
+
+    most_common_separator = max(frequencies, key=frequencies.get)
+
+    return most_common_separator
+
+
+def add_delimiters_to_end(csv_data, delimiter=';', encoding: str = 'utf-8'):
     new_csv_data = io.BytesIO()
 
     # Преобразование объекта io.BytesIO в список строк
-    csv_lines = csv_data.getvalue().decode('cp1251').splitlines()
+    csv_lines = csv_data.getvalue().decode(encoding).splitlines()
 
     # Добавление разделителей в конец строк, где они отсутствуют
     for line in csv_lines:
         if not line.endswith(delimiter):
             line += delimiter
-        new_csv_data.write(line.encode('cp1251') + b'\n')
+        new_csv_data.write(line.encode(encoding) + b'\n')
 
     new_csv_data.seek(0)  # Перемотка объекта io.BytesIO в начало
     return new_csv_data
 
 
+def replace_delimiters(csv_data, delimiter=';', encoding: str = 'utf-8') -> tuple[str, io.BytesIO]:
+    new_csv_data = io.BytesIO()
+    csv_lines = csv_data.getvalue().decode(encoding).splitlines()
+    count_delimiters = 0
+
+    for num, line in enumerate(csv_lines):
+        if num == 0:
+            count_delimiters = line.count(delimiter)
+
+        if line.count(delimiter) == count_delimiters:
+            new_csv_data.write(line.replace(delimiter, '|').encode(encoding))
+            continue
+
+        line_tuple = line.split(delimiter)
+        new_line = ''
+
+        for num, cell in enumerate(line_tuple):
+            if num == 0:
+                new_line += cell + '|'
+                continue
+
+            if num < 6:
+                new_line += cell + '|'
+                continue
+
+            if num < count_delimiters-1:
+                new_line += cell
+                continue
+
+            new_line += '|' + cell
+
+        new_csv_data.write(new_line.replace(delimiter, '|').encode(encoding))
+
+    new_csv_data.seek(0)
+    return '|', new_csv_data
+
+
 def get_all_cells_csv(file_path: io.BytesIO, filename: str, _tittle: str):
+    encoding = detect_encoding(file_path)
+    separator = detect_separator(file_path, encoding)
+    file_data = add_delimiters_to_end(file_path, delimiter=separator, encoding=encoding)
+
+    #separator, file_data = replace_delimiters(file_data, delimiter=separator, encoding=encoding)
 
     try:
-        data_frame = pd.read_csv(add_delimiters_to_end(file_path), delimiter=';', encoding='cp1251')
+        data_frame = pd.read_csv(file_data, delimiter=separator, encoding=encoding)
     except UnicodeDecodeError as e:
         print("UnicodeDecodeError:", e)
         return
 
     columns = data_frame.columns.values.tolist()
+    tittle = f'ФОП {_tittle}'
 
     if columns[0] == 'ST_NUMB':
-        tittle = _tittle
         date_column = data_frame['ST_DATE'].values.tolist()
         for num, date_cell in enumerate(date_column):
             if type(date_cell) is str and '.' in date_cell:
@@ -59,12 +137,53 @@ def get_all_cells_csv(file_path: io.BytesIO, filename: str, _tittle: str):
         return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
 
     if columns[0] == 'ЄДРПОУ':
-        tittle = _tittle
         date_column = data_frame['Дата операції'].values.tolist()
         sum_column = data_frame['Сума'].values.tolist()
         purpose_column = data_frame['Призначення платежу'].values.tolist()
         egrpou_column = data_frame['ЄДРПОУ кореспондента'].values.tolist()
         name_column = data_frame['Кореспондент'].values.tolist()
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+    # Kredit Agricole
+    if columns[0] == 'CONTRACT_ID':
+        date_column = data_frame['DOCUMENT_DATE'].values.tolist()
+        sum_column = data_frame['AMOUNT_AMT_CT_UAH'].values.tolist()
+        purpose_column = data_frame['DOCUMENT_DETAIL'].values.tolist()
+        egrpou_column = data_frame['COUNTERPART_TAX'].values.tolist()
+        name_column = data_frame['COUNTERPART_NAME'].values.tolist()
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+
+    # UKRGAZBANK
+    if columns[0] == 'DATA_VYP':
+        date_column = data_frame['DATA_VYP'].values.tolist()
+        sum_column = data_frame['SUM_PD_NOM'].values.tolist()
+        purpose_column = data_frame['PURPOSE'].values.tolist()
+        egrpou_column = data_frame['OKPO_KOR'].values.tolist()
+        name_column = data_frame['NAME_KOR'].values.tolist()
+
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+
+    # A-bank
+    if columns[0] == 'date':
+        date_column = data_frame['date'].values.tolist()
+        sum_column = data_frame['amount'].values.tolist()
+        purpose_column = data_frame['purpose'].values.tolist()
+        egrpou_column = data_frame['okpo'].values.tolist()
+        name_column = data_frame['counterparty'].values.tolist()
+
+        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+
+    # Mono
+    if columns[0] == 'Дата операції':
+        date_column = data_frame['Дата операції'].values.tolist()
+        for num, _date in enumerate(date_column):
+            if type(_date) is str and re.search(' ', _date):
+                date_column[num] = _date.split(' ')[0]
+
+        sum_column = data_frame['Сума операції'].values.tolist()
+        purpose_column = data_frame['Деталі операції'].values.tolist()
+        egrpou_column = data_frame['ЕДРПОУ контрагента'].values.tolist()
+        name_column = data_frame['Контрагент'].values.tolist()
+
         return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
 
 
@@ -735,7 +854,7 @@ async def append_fop_sum(data: dict[str, Union[float, str, list[str]]],
 
 
 @logger.catch
-async def get_timesheet_data(file_path: io.FileIO, filename: str, requests_type: str, mime_type: str,
+async def get_timesheet_data(file_path: io.FileIO, filename: str, requests_type: str, mime_type: str = 'xlsx',
                              prro_file: Union[io.FileIO, None] = None,
                              tittle: str = '') -> tuple[dict[str, Union[float, str]], str]:
     if mime_type == 'xlsx':
