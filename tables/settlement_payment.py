@@ -105,8 +105,9 @@ class SettlementPayment:
         self.sheet[f'Y{_start_row}'] = f'{x21}'
         self.sheet[f'Z{_start_row}'] = f'{x21}'
         self.sheet[f'AA{_start_row}'] = '-'
+        self.sheet[f'AB{_start_row}'] = f'{worker.name} {worker.ident_IPN}'
 
-        return False
+        return True
 
         def replace_n(string: str) -> str:
             return string.replace('\n', '').replace('\t', '') #.replace(' ', '')
@@ -141,7 +142,8 @@ class SettlementPayment:
 
         self.sheet['C8'] = f'Головний бухгалтер   {self.Employer.name}'
 
-        self._merge('B10:O10', 'B10', f'Розрахунково-платіжна відомість № 7 за {self._billing_period()} р.')
+        self._merge('B10:O10', 'B10',
+                    f'Розрахунково-платіжна відомість № {datetime.datetime.now().month-1} за {self._billing_period()} р.')
         top_left_cell = self.sheet['B10']
         top_left_cell.font = Font(bold=True)
 
@@ -150,7 +152,10 @@ class SettlementPayment:
         self._merge('X12:Z12', 'X12', 'Сума, грн.')
 
         self._merge('L13:N13', 'L13', 'Допомога за')
-        self.sheet['Q13'] = 'Податок\n на доходи\n фіз. осіб'
+        self.sheet['Q14'] = 'Податок'
+        self.sheet['Q15'] = 'на'
+        self.sheet['Q16'] = 'доходи'
+        self.sheet['Q17'] = 'фіз. осіб'
 
         self.sheet['E14'] = 'Відпра-'
         self._merge('F14:J14', 'F14', 'Доплат та надбавок')

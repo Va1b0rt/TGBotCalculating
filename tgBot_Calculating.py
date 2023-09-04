@@ -102,8 +102,15 @@ async def generate_timesheet(document, message, mime, tittle=''):
     result, _ = await get_timesheet_data(file, file_name, 'timesheet', mime_type=mime, tittle=tittle)
     ta = TableAssembler(result)
     result_tables, result_fops = ta.get_bytes()
-    for result in result_tables:
-        await bot.send_document(message.chat.id, types.InputFile(result, filename='RESULT.xls'))
+
+    if result_tables:
+        for result in result_tables:
+            await bot.send_document(message.chat.id, types.InputFile(result, filename='RESULT.xls'))
+    else:
+        await bot.send_message(message.chat.id,
+                               'Исходя из значений данной выписки была сгенерирована пустая таблица.'
+                               'Скорее всего набор значений данной выписки является неполным или повреждённым.')
+
     if result_fops:
         await bot.send_document(message.chat.id, types.InputFile(result_fops, filename='RESULT.txt'))
 

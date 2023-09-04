@@ -137,16 +137,37 @@ def get_all_cells_csv(file_path: io.BytesIO, filename: str, _tittle: str):
         return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
 
     if columns[0] == 'ЄДРПОУ':
-        date_column = data_frame['Дата операції'].values.tolist()
-        sum_column = data_frame['Сума'].values.tolist()
-        purpose_column = data_frame['Призначення платежу'].values.tolist()
-        egrpou_column = data_frame['ЄДРПОУ кореспондента'].values.tolist()
-        name_column = data_frame['Кореспондент'].values.tolist()
-        return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+        # Privat
+        if 'Сума' in columns:
+            date_column = data_frame['Дата операції'].values.tolist()
+            sum_column = data_frame['Сума'].values.tolist()
+            purpose_column = data_frame['Призначення платежу'].values.tolist()
+            egrpou_column = data_frame['ЄДРПОУ кореспондента'].values.tolist()
+            name_column = data_frame['Кореспондент'].values.tolist()
+
+            return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+        # Rifizen
+        elif 'Гривневе покриття' in columns:
+            date_column = data_frame['Дата операції'].values.tolist()
+            sum_column = data_frame['Кредит'].values.tolist()
+            for num, debet_sum in enumerate(data_frame['Дебет'].values.tolist()):
+                if math.isnan(sum_column[num]):
+                    sum_column[num] = debet_sum * -1
+
+            purpose_column = data_frame['Призначення платежу'].values.tolist()
+            egrpou_column = data_frame['ЄДРПОУ кореспондента'].values.tolist()
+            name_column = data_frame['Кореспондент'].values.tolist()
+
+            return tittle, date_column, sum_column, purpose_column, egrpou_column, name_column
+
     # Kredit Agricole
     if columns[0] == 'CONTRACT_ID':
         date_column = data_frame['DOCUMENT_DATE'].values.tolist()
-        sum_column = data_frame['AMOUNT_AMT_CT_UAH'].values.tolist()
+        for num, date_cell in enumerate(date_column):
+            if ' ' in date_column[num]:
+                date_column[num] = date_column[num].split(' ')[0]
+
+        sum_column = data_frame['DOCUMENT_AMT_CT_UAH'].values.tolist()
         purpose_column = data_frame['DOCUMENT_DETAIL'].values.tolist()
         egrpou_column = data_frame['COUNTERPART_TAX'].values.tolist()
         name_column = data_frame['COUNTERPART_NAME'].values.tolist()
