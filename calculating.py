@@ -943,6 +943,7 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
             sum_product = data_frame[columns[5]].values.tolist()
 
             return date_column, cash_column, sum_product
+        #elif "ID чека" in columns[0]:
 
     except (TypeError, IndexError):
         raise NotHaveTemplatePRRO()

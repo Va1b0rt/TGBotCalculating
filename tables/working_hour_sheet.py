@@ -129,6 +129,7 @@ class AppearanceOTWHSheet:
         result = 0
         for day in days:
             if day != 'x':
+
                 result += int(day)
         return result
 

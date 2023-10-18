@@ -1,3 +1,4 @@
+import calendar
 import datetime
 import io
 
@@ -18,6 +19,7 @@ logger = cls_logger.get_logger
 
 class SettlementPayment:
     def __init__(self, employer: Employer):
+
         self.Employer: Employer = employer
         self.creation_date: datetime = datetime.datetime.now()
         self.start_billing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month - 1, 1)
@@ -38,7 +40,7 @@ class SettlementPayment:
         if font:
             top_left_cell.font = font
 
-    def _billing_period(self) -> str:
+    def _billing_period(self, get_int: bool = False) -> str:
         def get_actual_month(_month: int) -> int:
             if _month == 1:
                 return 12
@@ -46,6 +48,9 @@ class SettlementPayment:
 
         month = months_names[get_actual_month(self.creation_date.month)-1]
         year = self.creation_date.year if month != 1 else self.creation_date.year - 1
+
+        if get_int:
+            return f'{get_actual_month(self.creation_date.month)} {year}'
 
         return f'{month} {year}'
 
@@ -57,6 +62,22 @@ class SettlementPayment:
         if int(worker.employment_date.split('.')[1]) > previous_month:
             return True
         return False
+
+    def _get_maximum_work_days(self, worker: Worker) -> int:
+        result = 0
+        _month = int(self._billing_period(get_int=True).split(' ')[0])
+        _year = int(self._billing_period().split(' ')[1])
+        num_days = calendar.monthrange(_year, _month)[1]
+
+        days_data = (int(worker.working_hours) if day.weekday() < 5 else 0 for day in
+                         (datetime.date(self.start_billing_period.year,
+                          self.start_billing_period.month, day_num) for day_num in range(1, num_days + 1)))
+
+        for day in days_data:
+            if day != 0:
+                result += 1
+
+        return result
 
     def _fill_table(self, num: int, worker: Worker, start_row: int):
         if self._if_employment_later_last_month(worker):
@@ -79,8 +100,15 @@ class SettlementPayment:
             dismissal_date = datetime.datetime.strptime('10.10.2099', '%d.%m.%Y')
         else:
             dismissal_date = datetime.datetime.strptime(worker.dismissal, '%d.%m.%Y')
-        self.sheet[f'E{_start_row}'] = f'{sum(AppearanceOTWHSheet._get_days_with_eights(self.start_billing_period.year, self.start_billing_period.month, worker.working_hours, employment_date, dismissal_date, not_x=True))}'
-        self.sheet[f'F{_start_row}'] = f'{worker.salary}'
+
+        work_days = int(sum(AppearanceOTWHSheet._get_days_with_eights(self.start_billing_period.year, self.start_billing_period.month, worker.working_hours, employment_date, dismissal_date, not_x=True))/int(worker.working_hours))
+        self.sheet[f'E{_start_row}'] = f'{work_days}'
+
+        max_days = self._get_maximum_work_days(worker)
+        _salary_per_day = int(worker.salary)/max_days
+        _salary = round(_salary_per_day * work_days, 2)
+
+        self.sheet[f'F{_start_row}'] = f'{_salary}'
 
         for cells in self.sheet.iter_cols(min_col=1, max_col=self.sheet.max_column,
                                           min_row=_start_row, max_row=_start_row):
@@ -93,10 +121,10 @@ class SettlementPayment:
         for column in range(start_column, self.sheet.max_column+1):
             self.sheet.cell(row=_start_row, column=column).value = '-'
 
-        self.sheet[f'O{_start_row}'] = f'{worker.salary}'
-        q21 = float(worker.salary) * 0.18
+        self.sheet[f'O{_start_row}'] = f'{_salary}'
+        q21 = round(float(_salary) * 0.18, 2)
         self.sheet[f'Q{_start_row}'] = f"{q21}"
-        t21 = float(worker.salary) * 0.015
+        t21 = round(float(_salary) * 0.015, 2)
         self.sheet[f'T{_start_row}'] = f"{t21}"
         u21 = q21 + t21
         self.sheet[f'U{_start_row}'] = f"{u21}"
@@ -107,7 +135,7 @@ class SettlementPayment:
         self.sheet[f'AA{_start_row}'] = '-'
         self.sheet[f'AB{_start_row}'] = f'{worker.name} {worker.ident_IPN}'
 
-        return True
+        self.sheet.row_dimensions[_start_row].height = 36
 
         def replace_n(string: str) -> str:
             return string.replace('\n', '').replace('\t', '') #.replace(' ', '')
@@ -116,9 +144,13 @@ class SettlementPayment:
             self.sheet[
                 f'AB{_start_row}'] = f'{replace_n(worker.name)}\n{replace_n(worker.ident_IPN)}'
         else:
-            self.sheet[f'AB{_start_row}'] = f'{worker.name.split(" ")[0]}\n{worker.name.split(" ")[1]} {replace_n(worker.name.split(" ")[2])} {replace_n(worker.ident_IPN)}'
+            try:
+                self.sheet[f'AB{_start_row}'] = f'{worker.name.split(" ")[0]}\n{worker.name.split(" ")[1]} {replace_n(worker.name.split(" ")[2])} {replace_n(worker.ident_IPN)}'
+            except IndexError:
+                self.sheet[
+                    f'AB{_start_row}'] = f'{replace_n(worker.name)}\n{replace_n(worker.ident_IPN)}'
 
-        self.sheet.row_dimensions[_start_row].height = 36
+        return True
 
     @logger.catch
     def __assemble_workbook(self):
@@ -176,7 +208,7 @@ class SettlementPayment:
         self.sheet['R15'] = 'соціаль-'
         self.sheet['S15'] = 'спілко-'
         self.sheet['T15'] = 'Інші'
-        self.sheet['V15'] = 'ваність'
+        self.sheet['V15'] = 'Разом'
         self.sheet['W15'] = 'за'
         self.sheet['X15'] = 'Заробіт-'
         self.sheet['Y15'] = 'Належить'
@@ -329,7 +361,7 @@ class SettlementPayment:
         self.sheet.row_dimensions[18].height = 12
         self.sheet.row_dimensions[19].height = 12
         self.sheet.row_dimensions[20].height = 12
-        self.sheet.row_dimensions[21].height = 36
+        #self.sheet.row_dimensions[21].height = 36
 
         border = Border(
             left=Side(border_style='thin', color='000000'),
@@ -445,13 +477,18 @@ class SettlementPayment:
 
 
 if __name__ == '__main__':
+
+
     worker1 = Worker(
         sex="М",
         name="John Doe",
         job_title="Software Engineer",
         salary="5000",
         working_hours="8",
-        ident_IPN="1234567890"
+        ident_IPN="1234567890",
+        employment_date="15.09.2023",
+        birthday="13.03.1992",
+        dismissal=''
     )
 
     worker2 = Worker(
@@ -460,14 +497,19 @@ if __name__ == '__main__':
         job_title="Data Scientist",
         salary="6000",
         working_hours="8",
-        ident_IPN="0987654321"
+        ident_IPN="0987654321",
+        employment_date="18.07.2023",
+        birthday="13.03.1992",
+        dismissal=''
     )
 
     # Создание объекта Employer с несколькими работниками
     employer = Employer(
         name="Acme Corporation",
         ident_EDRPOU="123456789",
-        workers=[worker1, worker2]
+        workers=[worker1, worker2],
+        residence = 'UK',
+        phone = '09094594095'
     )
 
     sheet = SettlementPayment(employer)
