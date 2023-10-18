@@ -232,7 +232,7 @@ class SettlementPayment:
         self.sheet['R16'] = 'ний'
         self.sheet['S16'] = 'вий'
         self.sheet['T16'] = 'утри-'
-        self.sheet['U16'] = 'ваність'
+        self.sheet['U16'] = 'Разом'
         self.sheet['V16'] = 'за/перед'
         self.sheet['W16'] = 'попередні'
         self.sheet['X16'] = 'ної'
