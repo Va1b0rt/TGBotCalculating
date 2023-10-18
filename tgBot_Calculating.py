@@ -1,11 +1,15 @@
 import atexit
 import io
+import json
+import os
+import traceback
 
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.files import JSONStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.types import ContentType, Message, CallbackQuery, ParseMode
 
+from Exceptions import NotHaveTemplate, UnknownEncoding, TemplateDoesNotFit, NotHaveTemplatePRRO
 from calculating import get_result, get_timesheet_data
 from XLAssembler import TableAssembler
 from cloud_sheets import Employers
@@ -20,7 +24,7 @@ logger = cls_logger.get_logger
 
 storage = JSONStorage('./storage/storage.json')
 bot = Bot(token=BOT_API_TOKEN)
-dp = Dispatcher(bot, storage=storage)
+dp: Dispatcher = Dispatcher(bot, storage=storage)
 
 
 async def save_out():
@@ -41,6 +45,7 @@ async def start_message_command(message: Message):
                            )
 
 
+# timesheet
 @dp.message_handler(commands=['timesheet'], state='*')
 async def start_message_command(message: Message):
     await StatesMenu.timesheet_acquiring.set()
@@ -56,25 +61,24 @@ async def button_upload(call: CallbackQuery):
 @logger.catch
 @dp.message_handler(content_types=ContentType.DOCUMENT, state=StatesMenu.timesheet_acquiring)
 async def handle_document(message: Message, state: FSMContext):
+
     document = message.document
     mime = ''
     if document.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
                               'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
         await message.answer('Получен XLS-файл. Обрабатываем...')
         mime = 'xlsx'
-        await generate_timesheet(document, message, mime)
+        await generate_timesheet(document.as_json(), message, mime)
     elif document.mime_type == 'text/csv' or document.file_name.endswith('.csv'):
         await StatesMenu.tittle_question.set()
         await message.answer('Получен CSV-файл. Обрабатываем...')
-
         async with state.proxy() as data:
             data['mime'] = 'csv'
-            data['document'] = document
-
+            data['document'] = document.as_json()
         await message.answer('Укажите имя владельца выписки.')
-
     else:
         return
+
 
 
 @logger.catch
@@ -94,32 +98,50 @@ async def handle_tittle_question(message: Message, state: FSMContext):
 
 
 async def generate_timesheet(document, message, mime, tittle=''):
-    file_id = document.file_id
-    file_info = await bot.get_file(file_id)
-    file_path = file_info.file_path
-    file = await bot.download_file(file_path)
-    file_name = document.file_name.replace('.xlsx', '').replace('.xls', '').replace('.csv', '')
-    result, _ = await get_timesheet_data(file, file_name, 'timesheet', mime_type=mime, tittle=tittle)
-    ta = TableAssembler(result)
-    result_tables, result_fops = ta.get_bytes()
+    try:
+        _document = json.loads(document)
+        file_id = _document['file_id']
+        file_info = await bot.get_file(file_id)
+        file_path = file_info.file_path
+        file = await bot.download_file(file_path)
+        file_name = _document['file_name'].replace('.xlsx', '').replace('.xls', '').replace('.csv', '')
+        result, _ = await get_timesheet_data(file, file_name, 'timesheet', mime_type=mime, tittle=tittle)
+        ta = TableAssembler(result)
+        title = result["tittle"]
+        result_tables, result_fops = ta.get_bytes()
 
-    if result_tables:
-        for result in result_tables:
-            await bot.send_document(message.chat.id, types.InputFile(result, filename='RESULT.xls'))
-    else:
+        if result_tables:
+            for result in result_tables:
+                await bot.send_document(message.chat.id, types.InputFile(result, filename=f'RESULT_{title}.xls'))
+        else:
+            await bot.send_message(message.chat.id,
+                                   'Исходя из значений данной выписки была сгенерирована пустая таблица.'
+                                   'Скорее всего набор значений данной выписки является неполным или повреждённым.')
+
+        if result_fops:
+            await bot.send_document(message.chat.id, types.InputFile(result_fops, filename=f'RESULT_4ДФ_{title}.txt'))
+
+        else:
+            pass
+            #await message.answer('Прикреплённый файл не является XLS-файлом')
+            #logger.warning('Прикреплённый файл не является XLS-файлом')
+    except NotHaveTemplate:
         await bot.send_message(message.chat.id,
-                               'Исходя из значений данной выписки была сгенерирована пустая таблица.'
-                               'Скорее всего набор значений данной выписки является неполным или повреждённым.')
-
-    if result_fops:
-        await bot.send_document(message.chat.id, types.InputFile(result_fops, filename='RESULT.txt'))
-
-    else:
-        pass
-        #await message.answer('Прикреплённый файл не является XLS-файлом')
-        #logger.warning('Прикреплённый файл не является XLS-файлом')
-
+                               'Не найден ни один шаблон, подходящий для обработки данной таблицы.\n'
+                               'Проверьте, что алгоритм работы с подобными таблицами был добавлен.')
+    except UnknownEncoding:
+        await bot.send_message(message.chat.id,
+                               'Мы не смогли определить кодировку вашего фала.\n'
+                               'Файл повреждён или имеет неизвесную кодировку.\n'
+                               'Для проверки целостности файла попробуйте открыть его в текстовом редакторе.')
+    except TemplateDoesNotFit:
+        await bot.send_message(message.chat.id,
+                               'Ключи не подходят.\n'
+                               'Скорее всего этот шаблон есть в нашей базе, но был изменен банком.\n')
+    except Exception as ex:
+        print(traceback.print_exception(ex))
     await StatesMenu.main.set()
+# timesheet end
 
 
 @dp.message_handler(commands=['extract'], state='*')
@@ -243,6 +265,7 @@ async def handle_document(message: Message):
     await StatesMenu.main.set()
 
 
+#bok_prro
 @logger.catch
 @dp.message_handler(commands=['bok_prro'], state='*')
 async def start_message_command(message: Message):
@@ -258,49 +281,100 @@ async def handle_extract(message: Message, state: FSMContext):
                               'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
         await message.answer('Получен файл выписки. Обрабатываем...')
         async with state.proxy() as data:
-            data['extract'] = document
+            data['extract'] = document.as_json()
+            data['mime'] = 'xlsx'
 
         await StatesMenu.next()
         await bot.send_message(message.chat.id, 'Ожидаю файл ПРРО')
+
+    elif document.mime_type == 'text/csv' or document.file_name.endswith('.csv'):
+        await StatesMenu.tittle_question_prro.set()
+        await message.answer('Получен CSV-файл. Обрабатываем...')
+        async with state.proxy() as data:
+            data['extract'] = document.as_json()
+            data['mime'] = 'csv'
+        await message.answer('Укажите имя владельца выписки.')
+    else:
+        return
+
+
+@logger.catch
+@dp.message_handler(content_types=ContentType.TEXT, state=StatesMenu.tittle_question_prro)
+async def handle_tittle_question_prro(message: Message, state: FSMContext):
+
+    async with state.proxy() as data:
+        data['title'] = message.text
+
+    if message.text:
+        await StatesMenu.bok_prro_2.set()
+        await bot.send_message(message.chat.id, 'Ожидаю файл ПРРО')
+    else:
+        await message.answer('Полученные данные неверны.')
+        await StatesMenu.main.set()
 
 
 @logger.catch
 @dp.message_handler(content_types=ContentType.DOCUMENT, state=StatesMenu.bok_prro_2)
 async def handle_extract(message: Message, state: FSMContext):
-    prro = message.document
-    if prro.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
-                          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
-        await message.answer('Получен файл ПРРО. Обрабатываем...')
-        async with state.proxy() as data:
-            extract = data['extract']
+    try:
+        prro = message.document
+        if prro.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
+                              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
+            await message.answer('Получен файл ПРРО. Обрабатываем...')
+            async with state.proxy() as data:
+                extract = json.loads(data['extract'])
 
-            extract_file_id = extract.file_id
-            extract_file_info = await bot.get_file(extract_file_id)
-            extract_file_path = extract_file_info.file_path
-            extract_file = await bot.download_file(extract_file_path)
-            extract_file_name = message.document.file_name.replace('.xlsx', '').replace('.xls', '')
+                extract_file_id = extract['file_id']
+                extract_file_info = await bot.get_file(extract_file_id)
+                extract_file_path = extract_file_info.file_path
+                extract_file = await bot.download_file(extract_file_path)
+                extract_file_name = message.document.file_name.replace('.xlsx', '').replace('.xls', '')
 
-            prro_file_id = prro.file_id
-            prro_file_info = await bot.get_file(prro_file_id)
-            prro_file_path = prro_file_info.file_path
-            prro_file = await bot.download_file(prro_file_path)
+                prro_file_id = prro.file_id
+                prro_file_info = await bot.get_file(prro_file_id)
+                prro_file_path = prro_file_info.file_path
+                prro_file = await bot.download_file(prro_file_path)
 
-            result, rows = await get_timesheet_data(extract_file, extract_file_name, 'bok_prro', prro_file=prro_file)
+                result, rows = await get_timesheet_data(extract_file, extract_file_name, 'bok_prro', mime_type=data['mime'],
+                                                        prro_file=prro_file)
 
-            ta = TableAssembler(result)
-            result_tables, result_fops = ta.get_bytes()
+                if 'title' not in data:
+                    data['title'] = result['tittle']
 
-            for _result in result_tables:
-                await bot.send_document(message.chat.id, types.InputFile(_result, filename='RESULT.xls'))
+                ta = TableAssembler(result)
+                result_tables, result_fops = ta.get_bytes()
 
-            if result_fops:
-                await bot.send_document(message.chat.id, types.InputFile(result_fops, filename='RESULT.txt'))
-    else:
-        await message.answer('Прикреплённый файл не является XLS-файлом')
-        logger.warning('Прикреплённый файл не является XLS-файлом')
+                for _result in result_tables:
+                    await bot.send_document(message.chat.id, types.InputFile(_result, filename=f'RESULT_{data["title"]}.xls'))
+
+                if result_fops:
+                    await bot.send_document(message.chat.id, types.InputFile(result_fops,
+                                                                             filename=f'RESULT_{data["title"]}.txt'))
+        else:
+            await message.answer('Прикреплённый файл не является XLS-файлом')
+            logger.warning('Прикреплённый файл не является XLS-файлом')
+
+    except NotHaveTemplate:
+        await bot.send_message(message.chat.id,
+                               'Не найден ни один шаблон, подходящий для обработки данной таблицы.\n'
+                               'Проверьте, что алгоритм работы с подобными таблицами был добавлен.')
+    except UnknownEncoding:
+        await bot.send_message(message.chat.id,
+                               'Мы не смогли определить кодировку вашего фала.\n'
+                               'Файл повреждён или имеет неизвесную кодировку.\n'
+                               'Для проверки целостности файла попробуйте открыть его в текстовом редакторе.')
+    except TemplateDoesNotFit:
+        await bot.send_message(message.chat.id,
+                               'Ключи не подходят.\n'
+                               'Скорее всего этот шаблон есть в нашей базе, но был изменен банком.\n')
+    except NotHaveTemplatePRRO:
+        await bot.send_message(message.chat.id,
+                               'Не найден ни один шаблон ПРРО, подходящий для обработки данной таблицы.\n'
+                               'Проверьте, что алгоритм работы с подобными таблицами был добавлен.')
 
     await state.finish()
     await StatesMenu.main.set()
+# end prro
 
 
 async def send_document_group(chat_id, documents, title: str):
@@ -335,10 +409,19 @@ async def start_message_command(message: Message):
         await send_document_group(message.chat.id, [sp_doc, aowhs_doc], employer.name)
 
 
+def delete_storage():
+    try:
+        os.remove('./storage/storage.json')
+        print(f"Storage has been successfully deleted.")
+    except OSError as e:
+        print(f"Error deleting the file ./storage/storage.json: {e}")
+
+
 if __name__ == "__main__":
     try:
         executor.start_polling(dp, skip_updates=True)
     except Exception as ex:
         logger.critical(ex)
+        delete_storage()
 
     input("Нажмите Enter для завершения программы...")

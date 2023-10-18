@@ -11,3 +11,4 @@ class StatesMenu(StatesGroup):
     bok_prro_2 = State()
     test_state = State()
     tittle_question = State()
+    tittle_question_prro = State()
