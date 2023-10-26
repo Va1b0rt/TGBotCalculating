@@ -7,6 +7,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.styles import Alignment, Font
 from openpyxl.styles import Border, Side
 
+from Exceptions import NoWorkers, WorkerNotHaveWorkHours
 from logger import Logger
 from tables.Models import Worker, Employer
 
@@ -27,6 +28,12 @@ class AppearanceOTWHSheet:
 
         self.workbook: Workbook = Workbook()
         self.sheet: Worksheet = Worksheet('')
+
+        self.last_row = {"days": 0,
+                         "hours": 0
+                         }
+
+        self.worker_counter = 0
 
         self.__assemble_workbook()
 
@@ -124,12 +131,10 @@ class AppearanceOTWHSheet:
                 result += 1
         return result
 
-    @logger.catch
     def _sum_hours(self, days: tuple[str]) -> int:
         result = 0
         for day in days:
             if day != 'x':
-
                 result += int(day)
         return result
 
@@ -138,13 +143,21 @@ class AppearanceOTWHSheet:
         first_day_of_this_month = today.replace(day=1)
         last_day_of_last_month = first_day_of_this_month - datetime.timedelta(days=1)
         previous_month = last_day_of_last_month.month
+
         if int(worker.employment_date.split('.')[1]) > previous_month:
             return True
+
+        if worker.dismissal != '':
+            if int(worker.dismissal.split('.')[1]) < previous_month:
+                return True
+
         return False
 
     def _fill_table(self, num, worker: Worker, row_num: int):
-        if self._if_employment_later_last_month(worker):
+        if worker.if_employment_later_last_month():
             return True
+
+        self.worker_counter += 1
 
         last_row = row_num
 
@@ -167,9 +180,12 @@ class AppearanceOTWHSheet:
             dismissal_date = datetime.datetime.strptime('10.10.2099', '%d.%m.%Y')
         else:
             dismissal_date = datetime.datetime.strptime(worker.dismissal, '%d.%m.%Y')
-        days = self._get_days_with_eights(self.start_billing_period.year, self.start_billing_period.month,
-                                          worker.working_hours, employment_date,
-                                          dismissal_date)
+        try:
+            days = self._get_days_with_eights(self.start_billing_period.year, self.start_billing_period.month,
+                                              worker.working_hours, employment_date,
+                                              dismissal_date)
+        except ValueError:
+            raise WorkerNotHaveWorkHours(worker)
 
         self._merge(f'A{last_row}:A{last_row + 1}', f'A{last_row}', f'{num + 1}')
         self._merge(f'B{last_row}:B{last_row + 1}', f'B{last_row}', f'{num + 1}')
@@ -178,8 +194,11 @@ class AppearanceOTWHSheet:
         if '.' in worker.name:
             self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}', worker.name)
         else:
-            self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}',
+            try:
+                self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}',
                                   f'{worker.name.split(" ")[0]}\n{worker.name.split(" ")[1]} {worker.name.split(" ")[2]}')
+            except IndexError:
+                self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}', worker.name)
 
         self.sheet[f'G{last_row}'] = days[0]
         self.sheet[f'H{last_row}'] = days[1]
@@ -198,8 +217,16 @@ class AppearanceOTWHSheet:
         self.sheet[f'U{last_row}'] = days[14]
         self.sheet[f'V{last_row}'] = 'x'
         self._merge(f'W{last_row}:W{last_row + 1}', f'W{last_row}', f'{self._sum_days(days)}')
-        self._merge(f'X{last_row}:X{last_row + 1}', f'X{last_row}', f"{self._sum_hours(days)}")
-        self._merge(f'AP{last_row}:AP{last_row + 1}', f'AP{last_row}', worker.salary)
+        try:
+            self.last_row["days"] += self._sum_days(days)
+            self._merge(f'X{last_row}:X{last_row + 1}', f'X{last_row}', f"{self._sum_hours(days)}")
+
+            self.last_row["hours"] += self._sum_hours(days)
+            self._merge(f'AP{last_row}:AP{last_row + 1}', f'AP{last_row}', worker.salary)
+        except TypeError:
+            raise NoWorkers()
+        except ValueError:
+            raise WorkerNotHaveWorkHours(worker)
 
         for row in self.sheet.iter_rows(min_row=last_row - 1, max_row=last_row, min_col=1, max_col=42):
             for cell in row:
@@ -243,7 +270,33 @@ class AppearanceOTWHSheet:
 
         return True
 
-    @logger.catch
+    def _fill_last_row(self, start_row: int):
+        center_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+        border = Border(
+            left=Side(border_style='thin', color='000000'),
+            right=Side(border_style='thin', color='000000'),
+            top=Side(border_style='thin', color='000000'),
+            bottom=Side(border_style='thin', color='000000')
+        )
+        self._merge(f'A{start_row}:V{start_row}', f'A{start_row}', 'РАЗОМ:',
+                    alignment=Alignment(horizontal='left', vertical='center', wrap_text=True),
+                    font=Font(name='Arial', size=9, bold=True))
+        self.sheet[f'W{start_row}'] = self.last_row['days']
+        self.sheet[f'X{start_row}'] = self.last_row['hours']
+
+        font = Font(name='Arial', bold=False, italic=False, size=8)
+
+        for row in self.sheet.iter_rows(min_row=start_row, max_row=start_row, min_col=1, max_col=42):
+            for cell in row:
+                cell.border = border
+                cell.alignment = center_alignment
+                cell.font = font
+
+        self._merge(f'A{start_row}:V{start_row}', f'A{start_row}', 'РАЗОМ:',
+                    alignment=Alignment(horizontal='right', vertical='center', wrap_text=True),
+                    font=Font(name='Arial', size=9, bold=True))
+
     def __assemble_workbook(self):
 
         border = Border(
@@ -357,7 +410,17 @@ class AppearanceOTWHSheet:
             if if_feel:
                 last_row += 2
 
-        last_row += 1
+        font = Font(name='Arial', bold=False, italic=False, size=8)
+        for col in self.sheet.columns:
+            for cell in col:
+                cell.font = font
+
+        if self.worker_counter == 0:
+            raise NoWorkers()
+
+        self._fill_last_row(last_row)
+
+        last_row += 2
 
         self.sheet[f'B{last_row}'].font = Font(name='Arial', bold=True, size=9)
         self.sheet[f'B{last_row}'] = 'Відповідальна особа'
@@ -381,6 +444,13 @@ class AppearanceOTWHSheet:
 
         last_row += 3
 
+        font = Font(name='Arial', bold=False, italic=False, size=8)
+
+        for row in self.sheet.iter_rows(min_row=last_row, max_row=last_row+3, min_col=1, max_col=42):
+            for cell in row:
+                cell.font = font
+                cell.alignment = Alignment(horizontal='left', vertical='bottom', )
+
         self._merge(f'F{last_row}:H{last_row}', f'F{last_row}', '')
         self._merge(f'B{last_row}:E{last_row}', f'B{last_row}', '\"____\"___________20___р.')
         self.sheet[f'J{last_row}'] = self.Employer.name
@@ -394,11 +464,6 @@ class AppearanceOTWHSheet:
         self._merge(f'J{last_row}:Q{last_row}', f'J{last_row}', '(ПІБ)')
         self._merge(f'Z{last_row}:AB{last_row}', f'Z{last_row}', '(підпис)')
         self._merge(f'AD{last_row}:AF{last_row}', f'AD{last_row}', '(ПІБ)')
-
-        font = Font(name='Arial', bold=False, italic=False, size=8)
-        for col in self.sheet.columns:
-            for cell in col:
-                cell.font = font
 
         self.sheet['B2'].font = Font(name='Arial', bold=True, size=10)
         self.sheet['G8'].font = Font(name='Arial', bold=True, size=10)
@@ -419,9 +484,9 @@ class AppearanceOTWHSheet:
 
         self.sheet.column_dimensions['A'].width = 3.46
         self.sheet.column_dimensions['B'].width = 7.26
-        self.sheet.column_dimensions['C'].width = 2.99
-        self.sheet.column_dimensions['D'].width = 4.64
-        self.sheet.column_dimensions['E'].width = 4.45
+        self.sheet.column_dimensions['C'].width = 3.2
+        self.sheet.column_dimensions['D'].width = 6.5
+        self.sheet.column_dimensions['E'].width = 6.5
         self.sheet.column_dimensions['F'].width = 8.77
         self.sheet.column_dimensions['G'].width = 3.2
         self.sheet.column_dimensions['H'].width = 3.2
@@ -439,17 +504,17 @@ class AppearanceOTWHSheet:
         self.sheet.column_dimensions['T'].width = 3.2
         self.sheet.column_dimensions['U'].width = 3.2
         self.sheet.column_dimensions['V'].width = 3.2
-        self.sheet.column_dimensions['W'].width = 2.78
-        self.sheet.column_dimensions['X'].width = 5.14
-        self.sheet.column_dimensions['Y'].width = 4.45
-        self.sheet.column_dimensions['Z'].width = 4.45
-        self.sheet.column_dimensions['AA'].width = 4.45
-        self.sheet.column_dimensions['AB'].width = 6.98
-        self.sheet.column_dimensions['AC'].width = 5.95
+        self.sheet.column_dimensions['W'].width = 6.47
+        self.sheet.column_dimensions['X'].width = 6.47
+        self.sheet.column_dimensions['Y'].width = 6.47
+        self.sheet.column_dimensions['Z'].width = 6.47
+        self.sheet.column_dimensions['AA'].width = 6.47
+        self.sheet.column_dimensions['AB'].width = 6.47
+        self.sheet.column_dimensions['AC'].width = 6.47
         self.sheet.column_dimensions['AD'].width = 6.47
         self.sheet.column_dimensions['AE'].width = 6.47
         self.sheet.column_dimensions['AF'].width = 6.47
-        self.sheet.column_dimensions['AG'].width = 6.85
+        self.sheet.column_dimensions['AG'].width = 6.47
         self.sheet.column_dimensions['AH'].width = 6.47
         self.sheet.column_dimensions['AI'].width = 6.47
         self.sheet.column_dimensions['AJ'].width = 6.47
@@ -555,7 +620,10 @@ if __name__ == '__main__':
         job_title="Software Engineer",
         salary="5000",
         working_hours="8",
-        ident_IPN="1234567890"
+        ident_IPN="1234567890",
+        employment_date="15.09.2023",
+        birthday="13.03.1992",
+        dismissal=''
     )
 
     worker2 = Worker(
@@ -564,14 +632,19 @@ if __name__ == '__main__':
         job_title="Data Scientist",
         salary="6000",
         working_hours="8",
-        ident_IPN="0987654321"
+        ident_IPN="0987654321",
+        employment_date="18.07.2023",
+        birthday="13.03.1992",
+        dismissal=''
     )
 
     # Создание объекта Employer с несколькими работниками
     employer = Employer(
         name="Acme Corporation",
         ident_EDRPOU="123456789",
-        workers=[worker1, worker2]
+        workers=[worker1, worker2],
+        residence='UK',
+        phone='09094594095'
     )
 
     sheet = AppearanceOTWHSheet(employer)

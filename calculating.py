@@ -9,6 +9,7 @@ from typing import Union
 import cchardet
 import pandas as pd
 
+from CSVBankExtract import CSVExtractor
 from DB_API import DBClient
 from Exceptions import NotExistsPerson, NotHaveTemplate, UnknownEncoding, TemplateDoesNotFit, NotHaveTemplatePRRO
 from logger import Logger
@@ -320,8 +321,8 @@ def get_all_cells_csv(file_path: io.BytesIO, filename: str, _tittle: str):
             for num, date in enumerate(date_column):
                 if type(date) is str and '.' in date:
 
-                    sum_column[num] = round(float(sum_column[num]) *
-                                            DBClient().get_rate_in_date(datetime.datetime.strptime(date, '%d.%m.%Y'))[currency[num]], 2)
+                    rate = DBClient().get_rate_in_date(datetime.datetime.strptime(date, '%d.%m.%Y'))[currency[num]]
+                    sum_column[num] = round(float(sum_column[num]) * rate, 2)
 
             purpose_column = data_frame['Призначення платежу'].values.tolist()
             egrpou_column = data_frame['Код контрагента'].values.tolist()
@@ -1049,16 +1050,22 @@ async def append_fop_sum(data: dict[str, Union[float, str, list[str]]],
 
 async def get_timesheet_data(file_path: io.FileIO, filename: str, requests_type: str, mime_type: str = 'xlsx',
                              prro_file: Union[io.FileIO, None] = None,
-                             tittle: str = '') -> tuple[dict[str, Union[float, str]], str]:
+                             title: str = '') -> tuple[dict[str, Union[float, str]], str]:
     if mime_type == 'xlsx':
-        tittle, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = get_all_cells(file_path, filename)
+        title, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = get_all_cells(file_path, filename)
 
     else:
-        tittle, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = get_all_cells_csv(file_path, filename,
-                                                                                                   tittle)
+        extractor = CSVExtractor(file_path, title)
+        title = extractor.title
+        date_cells = extractor.date_column
+        sum_cells = extractor.sum_column
+        purpose_cells = extractor.purpose_column
+        egrpou_cells = extractor.egrpou_column
+        name_cells = extractor.name_column
+        #tittle, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = get_all_cells_csv(file_path, filename,
+        #                                                                                           tittle)
 
-
-    timesheet_data, rows = gen_timesheet_data(tittle, date_cells, sum_cells, purpose_cells)
+    timesheet_data, rows = gen_timesheet_data(title, date_cells, sum_cells, purpose_cells)
 
     if prro_file:
         timesheet_data = process_prro(prro_file, timesheet_data)

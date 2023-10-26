@@ -1,7 +1,8 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-from config import keyfile, sheet_url, worksheet as worksheet_name, workers_sheet, workers_worksheet
+from config import (keyfile, sheet_url, worksheet as worksheet_name, workers_sheet, workers_worksheet,
+                    statement_columns, statement_worksheet)
 from tables.Models import Employer, Worker
 
 IGNORE_LIST = ['Рахуємо суми з + (ігнор рядків із найменуванням нижче) "ПРИВАТ"',
@@ -108,6 +109,40 @@ class Employers:
     def get_employers(self) -> list[Employer]:
         return self.employers
 
+
+class Columns:
+    def __init__(self):
+        self.columns = {"date": [],
+                        "sum": [],
+                        "purpose": [],
+                        "egrpou": [],
+                        "name": [],
+                        "currency": []}
+
+        self._feel_colum_names()
+
+    def _feel_colum_names(self):
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(keyfile, scope)
+        client = gspread.authorize(credentials)
+        sheet = client.open_by_url(statement_columns)
+        worksheet = sheet.worksheet(statement_worksheet)
+        data = worksheet.get_all_values()
+
+        for row in data:
+            if row[0]:
+                self.columns['date'].append(row[0])
+            if row[1]:
+                self.columns['sum'].append(row[1])
+            if row[2]:
+                self.columns['purpose'].append(row[2])
+            if row[3]:
+                self.columns['egrpou'].append(row[3])
+            if row[4]:
+                self.columns['name'].append(row[4])
+            if row[5]:
+                self.columns['currency'].append(row[5])
+
+
 if __name__ == '__main__':
     #ptrns = Patterns()
 #
@@ -120,6 +155,8 @@ if __name__ == '__main__':
     #for white in ptrns.whitelist:
     #    print(f'white: {white}')
 #
-    emp = Employers()
-    for employer in emp.get_employers():
-        print(employer.model_dump_json())
+#    emp = Employers()
+#    for employer in emp.get_employers():
+#        print(employer.model_dump_json())
+    col = Columns()
+    print(col.columns)

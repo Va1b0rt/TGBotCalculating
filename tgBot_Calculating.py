@@ -9,7 +9,8 @@ from aiogram.contrib.fsm_storage.files import JSONStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.types import ContentType, Message, CallbackQuery, ParseMode
 
-from Exceptions import NotHaveTemplate, UnknownEncoding, TemplateDoesNotFit, NotHaveTemplatePRRO
+from Exceptions import NotHaveTemplate, UnknownEncoding, TemplateDoesNotFit, NotHaveTemplatePRRO, NoWorkers, \
+    WorkerNotHaveWorkHours, NoColumn
 from calculating import get_result, get_timesheet_data
 from XLAssembler import TableAssembler
 from cloud_sheets import Employers
@@ -91,13 +92,13 @@ async def handle_tittle_question(message: Message, state: FSMContext):
         mime = data.get('mime')
 
     if user_answer and document and mime:
-        await generate_timesheet(document, message, mime, tittle=user_answer)
+        await generate_timesheet(document, message, mime, title=user_answer)
     else:
         await message.answer('Полученные данные неверны.')
         await StatesMenu.main.set()
 
 
-async def generate_timesheet(document, message, mime, tittle=''):
+async def generate_timesheet(document, message, mime, title=''):
     try:
         _document = json.loads(document)
         file_id = _document['file_id']
@@ -105,7 +106,7 @@ async def generate_timesheet(document, message, mime, tittle=''):
         file_path = file_info.file_path
         file = await bot.download_file(file_path)
         file_name = _document['file_name'].replace('.xlsx', '').replace('.xls', '').replace('.csv', '')
-        result, _ = await get_timesheet_data(file, file_name, 'timesheet', mime_type=mime, tittle=tittle)
+        result, _ = await get_timesheet_data(file, file_name, 'timesheet', mime_type=mime, title=title)
         ta = TableAssembler(result)
         title = result["tittle"]
         result_tables, result_fops = ta.get_bytes()
@@ -138,8 +139,12 @@ async def generate_timesheet(document, message, mime, tittle=''):
         await bot.send_message(message.chat.id,
                                'Ключи не подходят.\n'
                                'Скорее всего этот шаблон есть в нашей базе, но был изменен банком.\n')
+    except NoColumn as ex:
+        await bot.send_message(message.chat.id,
+                               f'Не нашёл подходящее значение названия для столбца {ex.column_name}\n'
+                               'Скорее всего в таблице нет правильного значения.\n')
     except Exception as ex:
-        print(traceback.print_exception(ex))
+        print(ex)
     await StatesMenu.main.set()
 # timesheet end
 
@@ -391,7 +396,6 @@ async def send_document_group(chat_id, documents, title: str):
     await bot.send_media_group(chat_id=chat_id, media=media)
 
 
-@logger.catch
 @dp.message_handler(commands=['test_command'], state='*')
 async def start_message_command(message: Message):
     await StatesMenu.test_state.set()
@@ -400,13 +404,29 @@ async def start_message_command(message: Message):
     employers = Employers()
 
     for employer in employers.get_employers():
-        sp = SettlementPayment(employer)
-        sp_doc = sp.get_bytes()
+        if len(employer.workers) == 0:
+            await bot.send_message(message.chat.id, f'❌ <b>{employer.name}</b> не имеет сотрудников.',
+                                   parse_mode=types.ParseMode.HTML)
+            continue
+        try:
+            sp = SettlementPayment(employer)
+            sp_doc = sp.get_bytes()
 
-        aowhs = AppearanceOTWHSheet(employer)
-        aowhs_doc = aowhs.get_bytes()
+            aowhs = AppearanceOTWHSheet(employer)
+            aowhs_doc = aowhs.get_bytes()
 
-        await send_document_group(message.chat.id, [sp_doc, aowhs_doc], employer.name)
+            await send_document_group(message.chat.id, [sp_doc, aowhs_doc], employer.name)
+        except NoWorkers:
+            await bot.send_message(message.chat.id,
+                                   f'❌ <b>{employer.name}</b> не имеет сотрудников, удовлетворяющих требованиям'
+                                   f' для создания таблиц.',
+                                   parse_mode=types.ParseMode.HTML)
+        except WorkerNotHaveWorkHours as ex:
+            await bot.send_message(message.chat.id,
+                                   f'❌ У <b>{employer.name} > {ex.worker.name}</b> не проставлены часы в таблице. \n'
+                                   f'К сожалению без указания этих данных я не смогу сгенерировать таблицы.\n'
+                                   f'Заполните недостающие данные и попробуйте сгенерировать таблицы снова.',
+                                   parse_mode=types.ParseMode.HTML)
 
 
 def delete_storage():

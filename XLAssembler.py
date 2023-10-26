@@ -98,7 +98,8 @@ class TableAssembler:
                     if f'{combinate[0]} {combinate[1]} {combinate[2]}' in fop.lower() or f'{combinate[0]} {combinate[1][:1]} {combinate[2][:1]}' in fop.lower() or f'{combinate[0]} {combinate[1][:1]}. {combinate[2][:1]}.' in fop.lower():
                         del fop_sums[num]
                 except IndexError as er:
-                    print(er)
+                    #print(er)
+                    pass
 
         self.fop_sums.append(fop_sums)
 

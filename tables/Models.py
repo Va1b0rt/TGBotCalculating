@@ -1,3 +1,5 @@
+import datetime
+
 from pydantic import BaseModel
 
 
@@ -11,6 +13,21 @@ class Worker(BaseModel):
     employment_date: str
     birthday: str
     dismissal: str
+
+    def if_employment_later_last_month(self):
+        today = datetime.date.today()
+        first_day_of_this_month = today.replace(day=1)
+        last_day_of_last_month = first_day_of_this_month - datetime.timedelta(days=1)
+        previous_month = last_day_of_last_month.month
+
+        if int(self.employment_date.split('.')[1]) > previous_month:
+            return True
+
+        if self.dismissal != '':
+            if int(self.dismissal.split('.')[1]) < previous_month:
+                return True
+
+        return False
 
 
 class Employer(BaseModel):

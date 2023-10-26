@@ -99,6 +99,7 @@ class DBClient:
         result = {'USD': rate.USD,
                   'EUR': rate.EUR
                   }
+
         return result
 
     def _append_rate(self, date: datetime.datetime, usd: float, eur: float) -> CurrencyRate:
