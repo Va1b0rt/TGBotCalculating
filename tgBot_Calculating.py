@@ -2,7 +2,6 @@ import atexit
 import io
 import json
 import os
-import traceback
 
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.files import JSONStorage

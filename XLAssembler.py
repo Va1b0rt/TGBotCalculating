@@ -77,7 +77,6 @@ class TableAssembler:
 
         self.months_count = sorted(self.months_count, key=lambda x: int(x))
 
-
     @logger.catch
     def _set_years_count(self):
         for key in list(self.raw_body.keys()):
