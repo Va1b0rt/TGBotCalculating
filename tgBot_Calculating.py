@@ -274,7 +274,31 @@ async def handle_document(message: Message):
 @dp.message_handler(commands=['bok_prro'], state='*')
 async def start_message_command(message: Message):
     await StatesMenu.bok_prro.set()
+
+    await StatesMenu.book_prro_get_extracts.set()
     await bot.send_message(message.chat.id, 'Ожидаю файл выписки.')
+
+
+@logger.catch
+@dp.message_handler(content_types=ContentType.DOCUMENT, state=StatesMenu.book_prro_get_extracts)
+async def handle_extract(message: Message, state: FSMContext):
+    document = message.document
+    mime = ''
+    if document.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
+                              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
+        mime = 'xlsx'
+
+    elif document.mime_type == 'text/csv' or document.file_name.endswith('.csv'):
+        mime = 'csv'
+
+    async with state.proxy() as data:
+        if 'extracts' in data:
+            data['extracts'].append({
+                'extract': document.as_json(),
+                'mime': mime
+            })
+            
+
 
 
 @logger.catch

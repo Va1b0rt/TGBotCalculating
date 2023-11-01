@@ -63,10 +63,35 @@ class CSVExtractor:
         detector.close()
         encoding = detector.result['encoding']
 
-        if encoding is None:
-            raise UnknownEncoding
+        with open('./encodings', 'r+') as encodings_list:
 
-        self.encoding = encoding
+            if encoding:
+                present_in_file = False
+
+                for encoding_in_file in encodings_list.readlines():
+                    if encoding == encoding_in_file.replace('\n', ''):
+                        present_in_file += 1
+                        break
+
+                if not present_in_file:
+                    encodings_list.write(f'{encoding}\n')
+
+                self.encoding = encoding
+                return
+
+            for encoding_in_file in encodings_list.readlines():
+                self.csv_data.seek(0)
+
+                try:
+                    self.csv_data.readline().decode(encoding_in_file)
+                    self.encoding = encoding_in_file
+                    return
+                except UnicodeDecodeError:
+                    continue
+                except Exception as ex:
+                    logger.exception(ex)
+
+        raise UnknownEncoding
 
     def _detect_separator(self):
         separators = [',', ';', '\t', '|', ':']

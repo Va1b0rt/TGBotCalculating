@@ -7,6 +7,7 @@ class StatesMenu(StatesGroup):
     extract = State()
     extract_all = State()
     extract_test = State()
+    book_prro_get_extracts = State()
     bok_prro = State()
     bok_prro_2 = State()
     test_state = State()

@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 import io
 import itertools
@@ -20,7 +19,7 @@ cls_logger = Logger()
 logger = cls_logger.get_logger
 
 
-def detect_encoding(csv_data: io.BytesIO) -> str:
+def detect_encoding(csv_data: io.BytesIO) -> Union[str, None]:
     detector = cchardet.UniversalDetector()
 
     # Ensure the bytes_io is at the beginning
@@ -34,7 +33,32 @@ def detect_encoding(csv_data: io.BytesIO) -> str:
     detector.close()
     encoding = detector.result['encoding']
 
-    return encoding
+    with open('./encodings', 'r+') as encodings_list:
+        if encoding:
+            present_in_file = False
+
+            for encoding_in_file in encodings_list.readlines():
+                if encoding == encoding_in_file.replace('\n', ''):
+                    present_in_file += 1
+                    break
+
+            if not present_in_file:
+                encodings_list.write(f'{encoding}\n')
+
+            return encoding
+
+        for encoding_in_file in encodings_list.readlines():
+            csv_data.seek(0)
+
+            try:
+                csv_data.readline().decode(encoding)
+                return encoding_in_file
+            except UnicodeDecodeError:
+                continue
+            except Exception as ex:
+                logger.exception(ex)
+
+        return None
 
 
 def detect_separator(csv_data: io.BytesIO, encoding: str = 'utf-8'):
@@ -1215,10 +1239,23 @@ def get_result(file_path: Union[str, io.FileIO]) -> dict[str, Union[float, str]]
 
 
 if __name__ == '__main__':
-    test_file_path = r'C:\Users\valbo\Downloads\Telegram Desktop\Для книги\виписка червень (1).xls'
-    test_file_name = 'test_file_name'
+    #test_file_path = r'C:\Users\valbo\Downloads\Telegram Desktop\Для книги\виписка червень (1).xls'
+    #test_file_name = 'test_file_name'
+#
+    #result, _ = asyncio.run(get_timesheet_data(test_file_path, test_file_name, 'timesheet'))
+#
+    #print((result))
+    import os
 
-    result, _ = asyncio.run(get_timesheet_data(test_file_path, test_file_name, 'timesheet'))
+    folder_path = r"C:\Users\valbo\Downloads\csv"  # Замените на путь к вашей папке
 
-    print((result))
-
+    # Получить список файлов в папке
+    #file_list = os.listdir(folder_path)
+#
+    ## Теперь переменная file_list содержит список файлов в указанной папке
+    #for file_name in file_list:
+    #    with open(f'{folder_path}\{file_name}', 'rb') as bin_file:
+    #        print(detect_encoding(bin_file))
+#
+    with open(f'{folder_path}\\0000003227761776.csv', 'r', encoding='WINDOWS-1251') as file:
+        print(file.read())
