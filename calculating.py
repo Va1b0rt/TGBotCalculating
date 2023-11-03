@@ -1072,22 +1072,54 @@ async def append_fop_sum(data: dict[str, Union[float, str, list[str]]],
     return {**data, **result}
 
 
-async def get_timesheet_data(file_path: io.FileIO, filename: str, requests_type: str, mime_type: str = 'xlsx',
+async def get_files_data(files: Union[io.FileIO, list[dict]],
+                         title: str = '') -> tuple:
+    _title = f'ФОП {title}'
+    date_cells = []
+    sum_cells = []
+    purpose_cells = []
+    egrpou_cells = []
+    name_cells = []
+
+    for extract in files:
+        if extract['mime'] == 'xlsx':
+            _, _date_cells, _sum_cells, _purpose_cells, _egrpou_cells, _name_cells = get_all_cells(extract['extract_file'],
+                                                                                                   extract['extract_file_name'])
+            date_cells = date_cells + _date_cells
+            sum_cells = sum_cells + _sum_cells
+            purpose_cells = purpose_cells + _purpose_cells
+            egrpou_cells = egrpou_cells + _egrpou_cells
+            name_cells = name_cells + _name_cells
+
+        else:
+            extractor = CSVExtractor(extract['extract_file'], _title)
+            date_cells = date_cells + extractor.date_column
+            sum_cells = sum_cells + extractor.sum_column
+            purpose_cells = purpose_cells + extractor.purpose_column
+            egrpou_cells = egrpou_cells + extractor.egrpou_column
+            name_cells = name_cells + extractor.name_column
+
+    return _title, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells
+
+
+
+async def get_timesheet_data(files: Union[io.FileIO, list[dict]], requests_type: str, mime_type: str = 'xlsx',
                              prro_file: Union[io.FileIO, None] = None,
                              title: str = '') -> tuple[dict[str, Union[float, str]], str]:
-    if mime_type == 'xlsx':
-        title, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = get_all_cells(file_path, filename)
-
-    else:
-        extractor = CSVExtractor(file_path, title)
-        title = extractor.title
-        date_cells = extractor.date_column
-        sum_cells = extractor.sum_column
-        purpose_cells = extractor.purpose_column
-        egrpou_cells = extractor.egrpou_column
-        name_cells = extractor.name_column
-        #tittle, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = get_all_cells_csv(file_path, filename,
-        #                                                                                           tittle)
+    title, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = await get_files_data(files, title=title)
+    #if mime_type == 'xlsx':
+    #    title, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = get_all_cells(files, filename)
+#
+    #else:
+    #    extractor = CSVExtractor(files, title)
+    #    title = extractor.title
+    #    date_cells = extractor.date_column
+    #    sum_cells = extractor.sum_column
+    #    purpose_cells = extractor.purpose_column
+    #    egrpou_cells = extractor.egrpou_column
+    #    name_cells = extractor.name_column
+    #    #tittle, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = get_all_cells_csv(file_path, filename,
+    #    #                                                                                           tittle)
 
     timesheet_data, rows = gen_timesheet_data(title, date_cells, sum_cells, purpose_cells)
 
