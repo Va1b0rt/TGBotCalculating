@@ -196,7 +196,7 @@ class AppearanceOTWHSheet:
         else:
             try:
                 self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}',
-                                  f'{worker.name.split(" ")[0]}\n{worker.name.split(" ")[1]} {worker.name.split(" ")[2]}')
+                                      f'{worker.name.split(" ")[0]}\n{worker.name.split(" ")[1]} {worker.name.split(" ")[2]}')
             except IndexError:
                 self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}', worker.name)
 
@@ -222,7 +222,7 @@ class AppearanceOTWHSheet:
             self._merge(f'X{last_row}:X{last_row + 1}', f'X{last_row}', f"{self._sum_hours(days)}")
 
             self.last_row["hours"] += self._sum_hours(days)
-            self._merge(f'AP{last_row}:AP{last_row + 1}', f'AP{last_row}', worker.salary)
+            self._merge(f'AP{last_row}:AP{last_row + 1}', f'AP{last_row}', worker.salary_real)
         except TypeError:
             raise NoWorkers()
         except ValueError:

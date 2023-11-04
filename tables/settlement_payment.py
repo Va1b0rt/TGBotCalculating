@@ -161,7 +161,7 @@ class SettlementPayment:
         self.last_row["V"] += round(u21, 2)
         self.sheet[f'V{_start_row}'] = f"{round(u21, 2)}"
 
-        x21 = round(float(worker.salary) - u21, 2)
+        x21 = round(float(worker.salary_real) - u21, 2)
         self.last_row["Y"] += round(x21, 2)
         self.sheet[f'Y{_start_row}'] = f"{x21}"
 

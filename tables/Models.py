@@ -14,6 +14,22 @@ class Worker(BaseModel):
     birthday: str
     dismissal: str
 
+    @property
+    def working_hours_coef(self):
+        try:
+            working_hours = int(self.working_hours)
+            return working_hours / 8
+        except ValueError:
+            return None
+
+    @property
+    def salary_real(self):
+        try:
+            salary = int(self.salary)
+            return salary * self.working_hours_coef
+        except (ValueError, TypeError):
+            return None
+
     def if_employment_later_last_month(self):
         today = datetime.date.today()
         first_day_of_this_month = today.replace(day=1)
