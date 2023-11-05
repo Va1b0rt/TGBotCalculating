@@ -14,7 +14,7 @@ from Exceptions import NotHaveTemplate, UnknownEncoding, TemplateDoesNotFit, Not
 from calculating import get_result, get_timesheet_data
 from XLAssembler import TableAssembler
 from cloud_sheets import Employers
-from keyboards import button_handle_extracts, keyboard_handle_extracts
+from keyboards import button_handle_extracts, keyboard_handle_extracts, keyboard_handle_extracts_timesheet
 from logger import Logger
 from config import BOT_API_TOKEN
 from states import StatesMenu
@@ -38,6 +38,13 @@ def save_out():
 
 atexit.register(save_out)
 
+commands = ['/start',
+            '/timesheet',
+            '/extract',
+            '/extract_all',
+            '/extract_test',
+            '/bok_prro']
+
 
 @dp.message_handler(commands=['start'], state='*')
 async def start_message_command(message: Message):
@@ -47,14 +54,14 @@ async def start_message_command(message: Message):
                            )
 
 
-# timesheet
+# TIMESHEET
 @dp.message_handler(commands=['timesheet'], state='*')
 async def start_message_command(message: Message, state: FSMContext):
 
     async with state.proxy() as data:
         data.clear()
 
-    await StatesMenu.timesheet_acquiring.set()
+    await StatesMenu.timesheet_get_extras.set()
     await bot.send_message(message.chat.id, 'Ожидаю файл выписки.')
 
 
@@ -65,80 +72,108 @@ async def button_upload(call: CallbackQuery):
 
 
 @logger.catch
-@dp.message_handler(content_types=ContentType.DOCUMENT, state=StatesMenu.timesheet_acquiring)
+@dp.message_handler(content_types=ContentType.DOCUMENT, state=StatesMenu.timesheet_get_extras)
 async def handle_document(message: Message, state: FSMContext):
-
     document = message.document
     mime = ''
-    if document.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
-                              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
-        await message.answer('Получен XLS-файл. Обрабатываем...')
-        async with state.proxy() as data:
-            if 'extracts' in data:
-                data['extracts'].append({
-                    'extract': document.as_json(),
-                    'mime': 'xlsx',
-                    'title': ''
-                })
-            else:
-                data['extracts'] = [{
-                    'extract': document.as_json(),
-                    'mime': 'xlsx',
-                    'title': ''
-                }]
 
-            await generate_timesheet(data, message)
+    async with state.proxy() as data:
+        try:
+            if hasattr(message, 'md_text'):
+                data['title'] = message.md_text
+        except TypeError:
+            pass
 
-    elif document.mime_type == 'text/csv' or document.file_name.endswith('.csv'):
-        await StatesMenu.tittle_question.set()
-        await message.answer('Получен CSV-файл. Обрабатываем...')
-        async with state.proxy() as data:
-            if 'extracts' in data:
-                data['extracts'].append({
-                    'extract': document.as_json(),
-                    'mime': 'csv'
-                })
-            else:
-                data['extracts'] = [{
-                    'extract': document.as_json(),
-                    'mime': 'csv'
-                }]
-        await message.answer('Укажите имя владельца выписки.')
-    else:
-        return
+        if document.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
+                                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
+            mime = 'xlsx'
+
+        elif document.mime_type == 'text/csv' or document.file_name.endswith('.csv'):
+            mime = 'csv'
+
+        if 'extracts' in data:
+            data['extracts'].append({
+                'extract': document.as_json(),
+                'mime': mime
+            })
+        else:
+            data['extracts'] = [{
+                'extract': document.as_json(),
+                'mime': mime
+            }]
+
+        await message.answer(f'Получен файл «Выписки».\n'
+                             f'{get_message(data)}',
+                             reply_markup=keyboard_handle_extracts_timesheet,
+                             parse_mode=types.ParseMode.HTML)
 
 
 @logger.catch
-@dp.message_handler(content_types=ContentType.TEXT, state=StatesMenu.tittle_question)
-async def handle_tittle_question(message: Message, state: FSMContext):
-    user_answer = message.text
-
+@dp.callback_query_handler(lambda call: call.data == "button_handle_extracts_timesheet",
+                           state=StatesMenu.timesheet_get_extras)
+async def button_upload_timesheet(call: CallbackQuery, state: FSMContext):
     async with state.proxy() as data:
-        data['title'] = user_answer
+        if "title" not in data:
 
-        if user_answer and 'extracts' in data and data['extracts']:
-            await generate_timesheet(data, message)
-        else:
-            await message.answer('Полученные данные неверны.')
-            await StatesMenu.main.set()
+            await bot.send_message(call.message.chat.id,
+                                   f'⚠ <b>Обратьите внимание, что вы не указали имя владельца выписки.</b> ⚠\n'
+                                   'Без указания этой информации мы не сможем правильно обработать выписки.\n'
+                                   f'{get_message(data)}',
+                                   reply_markup=keyboard_handle_extracts_timesheet,
+                                   parse_mode=types.ParseMode.HTML)
+            return
+
+    if 'extracts' in data and data['extracts']:
+        await bot.edit_message_text('Обрабатываем...', call.message.chat.id, call.message.message_id)
+        await generate_timesheet(data, call.message)
+    else:
+        await bot.send_message(call.message.chat.id, 'Полученные данные неверны.')
+        await StatesMenu.main.set()
+
+
+@logger.catch
+@dp.message_handler(lambda message: message.text not in commands,
+                    content_types=ContentType.TEXT, state=StatesMenu.timesheet_get_extras)
+async def handle_tittle_question(message: Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['title'] = message.text
+
+        await message.answer(f'Имя владельца выписки было успешно обновлено.\n'
+                             f'{get_message(data)}',
+                             reply_markup=keyboard_handle_extracts_timesheet,
+                             parse_mode=types.ParseMode.HTML)
 
 
 async def generate_timesheet(data, message):
+    extracts = data['extracts']
     extracts_files = []
 
     try:
-        _document = json.loads(data['extracts'][0]['extract'])
-        file_id = _document['file_id']
-        file_info = await bot.get_file(file_id)
-        file_path = file_info.file_path
-        file = await bot.download_file(file_path)
-        file_name = _document['file_name'].replace('.xlsx', '').replace('.xls', '').replace('.csv', '')
+        for extract in extracts:
+            file_data = json.loads(extract['extract'])
+            extract_file_id = file_data['file_id']
+            extract_file_info = await bot.get_file(extract_file_id)
+            extract_file_path = extract_file_info.file_path
+            extract_file = await bot.download_file(extract_file_path)
+            extract_file_name = file_data["file_name"].replace('.xlsx', '').replace('.xls', '')
 
-        extracts_files.append({'extract_file': file,
-                               'extract_file_name': file_name,
-                               'mime': data['extracts'][0]['mime']})
+            extracts_files.append({'extract_file': extract_file,
+                                   'extract_file_name': extract_file_name,
+                                   'mime': extract['mime']})
+
+        #_document = json.loads(data['extracts'][0]['extract'])
+        #file_id = _document['file_id']
+        #file_info = await bot.get_file(file_id)
+        #file_path = file_info.file_path
+        #file = await bot.download_file(file_path)
+        #file_name = _document['file_name'].replace('.xlsx', '').replace('.xls', '').replace('.csv', '')
+#
+        #extracts_files.append({'extract_file': file,
+        #                       'extract_file_name': file_name,
+        #                       'mime': data['extracts'][0]['mime']})
 
         result, _ = await get_timesheet_data(extracts_files, 'timesheet', title=data['title'])
+
         ta = TableAssembler(result)
         title = result["tittle"]
         result_tables, result_fops = ta.get_bytes()
@@ -178,7 +213,8 @@ async def generate_timesheet(data, message):
     except Exception as ex:
         print(ex)
     await StatesMenu.main.set()
-# timesheet end
+
+# TIMESHEET END
 
 
 @dp.message_handler(commands=['extract'], state='*')
@@ -302,7 +338,7 @@ async def handle_document(message: Message):
     await StatesMenu.main.set()
 
 
-#bok_prro
+# BOK_PRRO
 @logger.catch
 @dp.message_handler(commands=['bok_prro'], state='*')
 async def start_message_command(message: Message, state: FSMContext):
@@ -317,17 +353,23 @@ async def start_message_command(message: Message, state: FSMContext):
 
 @logger.catch
 def get_message(state_data: dict) -> str:
-    extracts = ''.join([f"<b>{index + 1}: ✅{json.loads(doc['extract'])['file_name']}</b>\n" for index, doc in
-                        enumerate(state_data['extracts'])])
+    extracts = ''
+
+    if len(state_data['extracts']) > 0:
+        extracts = ''.join([f"<b>{index + 1}: ✅{json.loads(doc['extract'])['file_name']}</b>\n" for index, doc in
+                            enumerate(state_data['extracts'])])
+
     message = (f'Внесённое число выписок: <b>{len(state_data["extracts"])}</b>\n'
                f'Имя владельца: <b>"{state_data["title"] if "title" in state_data else "⚠️НЕТ ИМЕНИ⚠️"}"</b>:\n'
                f'Выписки: \n'
                f'{extracts}')
+
     return message
 
 
 @logger.catch
-@dp.message_handler(content_types=ContentType.TEXT, state=StatesMenu.book_prro_get_extracts)
+@dp.message_handler(lambda message: message.text not in commands,
+                    content_types=ContentType.TEXT, state=StatesMenu.book_prro_get_extracts)
 async def handle_extract_set_title(message: Message, state: FSMContext):
     async with state.proxy() as data:
         data['title'] = message.text
@@ -398,7 +440,8 @@ async def button_upload(call: CallbackQuery, state: FSMContext):
             return
 
     await StatesMenu.bok_prro_2.set()
-    await bot.send_message(call.message.chat.id, 'Ожидаю файл ПРРО')
+    await bot.edit_message_text('Ожидаю файл ПРРО', call.message.chat.id, call.message.message_id)
+    #await bot.send_message(call.message.chat.id, 'Ожидаю файл ПРРО')
 
 
 #@logger.catch
@@ -509,7 +552,7 @@ async def handle_extract(message: Message, state: FSMContext):
 
     await state.finish()
     await StatesMenu.main.set()
-# end prro
+# END PRRO
 
 
 async def send_document_group(chat_id, documents, title: str):
