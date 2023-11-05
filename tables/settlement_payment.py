@@ -129,7 +129,7 @@ class SettlementPayment:
         self.sheet[f'E{_start_row}'] = f'{work_days}'
 
         max_days = self._get_maximum_work_days(worker)
-        _salary_per_day = int(worker.salary)/max_days
+        _salary_per_day = int(worker.salary_real)/max_days
         _salary = round(_salary_per_day * work_days, 2)
 
         self.last_row["F"] += _salary
