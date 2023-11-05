@@ -161,7 +161,7 @@ class SettlementPayment:
         self.last_row["V"] += round(u21, 2)
         self.sheet[f'V{_start_row}'] = f"{round(u21, 2)}"
 
-        x21 = round(float(worker.salary_real) - u21, 2)
+        x21 = round(float(_salary) - u21, 2)
         self.last_row["Y"] += round(x21, 2)
         self.sheet[f'Y{_start_row}'] = f"{x21}"
 
@@ -216,8 +216,6 @@ class SettlementPayment:
             for cell in cells:
                 cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
                 cell.border = border
-
-
 
     def __assemble_workbook(self):
         self.sheet = self.workbook.active
