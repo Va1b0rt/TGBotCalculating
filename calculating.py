@@ -877,7 +877,55 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
 
         test = data_frame[columns[1]].values.tolist()
 
-        if 'Дата' in columns[0]:
+        # ОЩАД-ПЕЙ
+        if 'Дата та час оплати' in columns[0]:
+            date_column = data_frame[columns[0]].values.tolist()
+
+            for row_num, row in enumerate(date_column):
+                if type(row) is str:
+                    if re.search(r'\d*.\d*.\d* \d*:\d*:\d*', row):
+                        date_column[row_num] = row.split(' ')[0]
+                elif type(row) is int:
+                    real_timestamp = int(str(row)[:-9])
+                    row_datetime = datetime.datetime.fromtimestamp(real_timestamp)
+                    date = row_datetime.strftime('%d.%m.%Y')
+                    date_column[row_num] = date
+
+            cash_column = data_frame[columns[5]].values.tolist()
+
+            for row_num, row in enumerate(cash_column):
+                if 'Готівка' in row:
+                    cash_column[row_num] = 1
+                else:
+                    cash_column[row_num] = 0
+
+            sum_product = data_frame[columns[18]].values.tolist()
+            for num, sum_cell in enumerate(sum_product):
+                if math.isnan(sum_cell):
+                    sum_product[num] = 0.0
+
+            return date_column, cash_column, sum_product
+
+        # ВЧАСНО-КАССА
+        elif 'ЄДРПОУ' in columns[0]:
+            date_column = data_frame[columns[2]].values.tolist()
+
+            for row_num, row in enumerate(date_column):
+               if type(row) is int:
+                    real_timestamp = int(str(row)[:-9])
+                    row_datetime = datetime.datetime.fromtimestamp(real_timestamp)
+                    date = row_datetime.strftime('%d.%m.%Y')
+                    date_column[row_num] = date
+
+            cash_column = data_frame[columns[30]].values.tolist()
+            for num, cash in enumerate(cash_column):
+                cash_column[num] = 1
+
+            sum_product = data_frame[columns[40]].values.tolist()
+
+            return date_column, cash_column, sum_product
+
+        elif 'Дата' in columns[0]:
             date_column = data_frame[columns[0]].values.tolist()
 
             for row_num, row in enumerate(date_column):
