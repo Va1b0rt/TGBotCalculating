@@ -155,7 +155,7 @@ class SettlementPayment:
 
         start_column = 7
 
-        for column in range(start_column, self.sheet.max_column+1):
+        for column in range(start_column, self.sheet.max_column-3):
             self.sheet.cell(row=_start_row, column=column).value = '-'
 
         self.last_row["P"] += _salary
@@ -183,7 +183,7 @@ class SettlementPayment:
         self.sheet[f'AA{_start_row}'] = f'{x21}'
         self.last_row["AA"] += x21
 
-        self.sheet[f'AB{_start_row}'] = '-'
+        self.sheet[f'AB{_start_row}'] = ''
         self.sheet[f'AC{_start_row}'] = f'{worker.name} {worker.ident_IPN}'
 
         self.sheet.row_dimensions[_start_row].height = 36
