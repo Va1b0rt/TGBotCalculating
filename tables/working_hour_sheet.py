@@ -155,9 +155,7 @@ class AppearanceOTWHSheet:
 
     def _fill_table(self, num, worker: Worker, row_num: int):
         if worker.if_employment_later_last_month():
-            return True
-
-        self.worker_counter += 1
+            return False
 
         last_row = row_num
 
@@ -184,11 +182,20 @@ class AppearanceOTWHSheet:
             days = self._get_days_with_eights(self.start_billing_period.year, self.start_billing_period.month,
                                               worker.working_hours, employment_date,
                                               dismissal_date)
+            work_days = int(sum(AppearanceOTWHSheet._get_days_with_eights(self.start_billing_period.year,
+                                                                          self.start_billing_period.month,
+                                                                          worker.working_hours, employment_date,
+                                                                          dismissal_date, not_x=True)) / int(
+                worker.working_hours))
         except ValueError:
             raise WorkerNotHaveWorkHours(worker)
+        if work_days < 1:
+            return False
 
-        self._merge(f'A{last_row}:A{last_row + 1}', f'A{last_row}', f'{num + 1}')
-        self._merge(f'B{last_row}:B{last_row + 1}', f'B{last_row}', f'{num + 1}')
+        self.worker_counter += 1
+
+        self._merge(f'A{last_row}:A{last_row + 1}', f'A{last_row}', f'{self.worker_counter}')
+        self._merge(f'B{last_row}:B{last_row + 1}', f'B{last_row}', f'{self.worker_counter}')
         self._merge(f'C{last_row}:C{last_row + 1}', f'C{last_row}', worker.sex)
 
         if '.' in worker.name:

@@ -26,6 +26,7 @@ class SettlementPayment:
         self.start_billing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month - 1, 1)
         self.end_billing_period: datetime = AppearanceOTWHSheet._get_last_day_of_month(self.creation_date.year,
                                                                                        self.creation_date.month - 1)
+        self.worker_counter = 0
 
         self.workbook: Workbook = Workbook()
         self.sheet: Worksheet = Worksheet('')
@@ -111,9 +112,6 @@ class SettlementPayment:
             bottom=Side(border_style='thin', color='000000')
         )
 
-        self.sheet[f'A{_start_row}'] = f'{num+1}'
-        self.sheet[f'B{_start_row}'] = f'{num+1}'
-        self.sheet[f'D{_start_row}'] = f'{worker.job_title}'
         employment_date = datetime.datetime.strptime(worker.employment_date, '%d.%m.%Y')
         if worker.dismissal == '':
             dismissal_date = datetime.datetime.strptime('10.10.2099', '%d.%m.%Y')
@@ -121,11 +119,25 @@ class SettlementPayment:
             dismissal_date = datetime.datetime.strptime(worker.dismissal, '%d.%m.%Y')
 
         try:
-            work_days = int(sum(AppearanceOTWHSheet._get_days_with_eights(self.start_billing_period.year, self.start_billing_period.month, worker.working_hours, employment_date, dismissal_date, not_x=True))/int(worker.working_hours))
+            work_days = int(sum(AppearanceOTWHSheet._get_days_with_eights(self.start_billing_period.year,
+                                                                          self.start_billing_period.month,
+                                                                          worker.working_hours, employment_date,
+                                                                          dismissal_date, not_x=True)) / int(
+                worker.working_hours))
         except ValueError:
             raise WorkerNotHaveWorkHours(worker)
 
+        if work_days < 1:
+            return False
+
+        self.worker_counter += 1
+
+        self.sheet[f'A{_start_row}'] = f'{self.worker_counter}'
+        self.sheet[f'B{_start_row}'] = f'{self.worker_counter}'
+        self.sheet[f'D{_start_row}'] = f'{worker.job_title}'
+
         self.last_row["days"] += work_days
+
         self.sheet[f'E{_start_row}'] = f'{work_days}'
 
         max_days = self._get_maximum_work_days(worker)
