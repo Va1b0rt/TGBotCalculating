@@ -869,6 +869,50 @@ def counting_revenue(data: dict[str, Union[float, str]], tax: int = 0) -> dict[s
     return result
 
 
+def pars_prro_csv(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]], list[Union[float, str]]]:
+    encoding = detect_encoding(prro_file)
+    separator = detect_separator(prro_file, encoding)
+    file_data = add_delimiters_to_end(prro_file, delimiter=separator, encoding=encoding)
+
+    data_frame = pd.read_csv(file_data, delimiter=separator, encoding=encoding)
+
+    columns = data_frame.columns.values.tolist()
+
+    try:
+        if 'Дата створення' in columns[0]:
+            date_column = data_frame['Дата створення'].values.tolist()
+            for row_num, row in enumerate(date_column):
+                if type(row) is str:
+                    if re.search(r'\d*-\d*-\d* \d*:\d*:\d*', row):
+                        year, month, day = row.split(' ')[0].split('-')
+                        date = f'{day}.{month}.{year}'
+                        date_column[row_num] = date
+                elif type(row) is int:
+                    real_timestamp = int(str(row)[:-9])
+                    row_datetime = datetime.datetime.fromtimestamp(real_timestamp)
+                    date = row_datetime.strftime('%d.%m.%Y')
+                    date_column[row_num] = date
+
+
+            cash_column = data_frame[columns[1]].values.tolist()
+            for num, cash in enumerate(cash_column):
+                cash_column[num] = 1
+
+            sum_product = data_frame['Сума'].values.tolist()
+            for num, sum_cell in enumerate(sum_product):
+                if type(sum_cell) is str:
+                    try:
+                        sum_product[num] = float(sum_cell.replace(' ', '').replace(',', '.'))
+                    except Exception as ex:
+                        logger.warning(ex)
+
+            return date_column, cash_column, sum_product
+    except (TypeError, IndexError):
+        raise NotHaveTemplatePRRO()
+
+    raise NotHaveTemplatePRRO()
+
+
 def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]], list[Union[float, str]]]:
     try:
         data_frame = pd.read_excel(prro_file)
@@ -1024,9 +1068,14 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
     raise NotHaveTemplatePRRO()
 
 
-def process_prro(prro_file: io.FileIO, data: dict[str, Union[float, str]]) -> dict[str, Union[float, str]]:
+def process_prro(prro_file: io.FileIO, data: dict[str, Union[float, str]], mime: str) -> dict[str, Union[float, str]]:
     result = data
-    date_column, cash_column, sum_product = parce_prro(prro_file)
+    if mime == 'xlsx':
+        date_column, cash_column, sum_product = parce_prro(prro_file)
+    elif mime == 'csv':
+        date_column, cash_column, sum_product = pars_prro_csv(prro_file)
+    else:
+        raise NotHaveTemplatePRRO()
 
     for date_cell, cash_cell, sum_cell in zip(date_column, cash_column, sum_product):
         if check_date(date_cell):
@@ -1086,7 +1135,7 @@ async def append_fop_sum(data: dict[str, Union[float, str, list[str]]],
             egrpous.append(f'{egrpou}')
 
 
-    fops: dict[str, bool] = await get_egrpou_dict(egrpous)
+    #fops: dict[str, bool] = await get_egrpou_dict(egrpous)
 
     for egrpou, name, sum_row, date, purpose in zip(list_egrpou, names, sum_cells, date_cells, purpose_cells):
 
@@ -1098,7 +1147,7 @@ async def append_fop_sum(data: dict[str, Union[float, str, list[str]]],
             if contains:
                 continue
 
-        if type(f'{egrpou}') is str and len(f'{egrpou}') == 10 and fops[f'{egrpou}']:
+        if type(f'{egrpou}') is str and len(f'{egrpou}') == 10:  # and fops[f'{egrpou}']:
             if not check_date(date):
                 continue
             if date.split('.')[1] in sum_fops:
@@ -1153,6 +1202,7 @@ async def get_files_data(files: Union[io.FileIO, list[dict]],
 
 async def get_timesheet_data(files: Union[io.FileIO, list[dict]], requests_type: str, mime_type: str = 'xlsx',
                              prro_file: Union[io.FileIO, None] = None,
+                             prro_mime: str = '',
                              title: str = '') -> tuple[dict[str, Union[float, str]], str]:
     title, date_cells, sum_cells, purpose_cells, egrpou_cells, name_cells = await get_files_data(files, title=title)
     #if mime_type == 'xlsx':
@@ -1172,7 +1222,7 @@ async def get_timesheet_data(files: Union[io.FileIO, list[dict]], requests_type:
     timesheet_data, rows = gen_timesheet_data(title, date_cells, sum_cells, purpose_cells)
 
     if prro_file:
-        timesheet_data = process_prro(prro_file, timesheet_data)
+        timesheet_data = process_prro(prro_file, timesheet_data, prro_mime)
 
     timesheet_data = counting_revenue(timesheet_data)
 

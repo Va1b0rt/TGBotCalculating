@@ -265,7 +265,7 @@ class CSVExtractor:
             result = self.dataframe[column_name.split('/')[0]].values.tolist()
             debit = self.dataframe[column_name.split('/')[1]].values.tolist()
             for num, debit_cell in enumerate(debit):
-                if math.isnan(debit[num] is False):
+                if not math.isnan(debit[num]):
                     result[num] = debit_cell * -1
         else:
             result = self.dataframe[column_name].values.tolist()
