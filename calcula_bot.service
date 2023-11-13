@@ -6,8 +6,9 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/usr/src/tgBot_Calculating/
-ExecStart=/usr/local/bin/python3.10 /usr/src/tgBot_Calculating/tgBot_Calculating.py
+WorkingDirectory=/root/Programs/calcula_bot/
+Environment="PATH=/root/Program/calcula_bot/.env/bin"
+ExecStart=/root/Program/calcula_bot/.env/bin/python /root/Programs/calcula_bot/tgBot_Calculating.py
 RestartSec=10
 Restart=always
 

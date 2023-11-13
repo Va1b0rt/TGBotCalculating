@@ -143,6 +143,7 @@ class CSVExtractor:
 
     def _get_dataframe(self):
         self.dataframe = pd.read_csv(self.csv_data, delimiter=self.delimiter, encoding=self.encoding)
+        #self.dataframe.fillna(value='-', inplace=True)
 
     def _get_columns(self):
         self.df_columns = self.dataframe.columns.values.tolist()
