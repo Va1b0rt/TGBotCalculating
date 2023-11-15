@@ -325,6 +325,9 @@ class CSVExtractor:
         egrpou = self._get_column_data('egrpou')
         if not egrpou:
             raise NoColumn('"ЕГРПОУ"')
+        for num, egrpou_cell in enumerate(egrpou):
+            if type(egrpou_cell) is float:
+                egrpou[num] = f'{egrpou_cell}'[:-2]
         self.egrpou_column = egrpou
 
     # END EGRPOU COLUMN

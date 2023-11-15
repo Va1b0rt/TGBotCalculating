@@ -1023,7 +1023,7 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
             return date_column, cash_column, sum_product
 
         elif '#' in data_frame[columns[1]].values.tolist()[0]:
-            date_column = data_frame[columns[4]].values.tolist()
+            date_column = data_frame[columns[3]].values.tolist()
             for row_num, row in enumerate(date_column):
                 if type(row) is str:
                     if re.search(r'\d*-\d*-\d* \d*:\d*:\d*', row):
@@ -1031,7 +1031,7 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
                         date = f'{day}.{month}.{year}'
                         date_column[row_num] = date
 
-            cash_column = data_frame[columns[6]].values.tolist()
+            cash_column = data_frame[columns[5]].values.tolist()
 
             sum_product = data_frame[columns[16]].values.tolist()
 
@@ -1051,6 +1051,7 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
                     date = row_datetime.strftime('%d.%m.%Y')
                     date_column[row_num] = date
             cash_column = data_frame[columns[4]].values.tolist()
+
             for row_num, row in enumerate(cash_column):
                 if type(row) is str and 'Готівка' in row:
                     cash_column[row_num] = 1
