@@ -952,7 +952,12 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
 
         # ВЧАСНО-КАССА
         elif 'ЄДРПОУ' in columns[0]:
+            type_rro = 0
+
             date_column = data_frame[columns[2]].values.tolist()
+            if type(date_column[3]) is str:
+                type_rro = 1
+                date_column = data_frame[columns[6]].values.tolist()
 
             for row_num, row in enumerate(date_column):
                if type(row) is int:
@@ -960,12 +965,22 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
                     row_datetime = datetime.datetime.fromtimestamp(real_timestamp)
                     date = row_datetime.strftime('%d.%m.%Y')
                     date_column[row_num] = date
+            if type_rro == 0:
+                cash_column = data_frame[columns[30]].values.tolist()
+            else:
+                cash_column = data_frame[columns[12]].values.tolist()
 
-            cash_column = data_frame[columns[30]].values.tolist()
-            for num, cash in enumerate(cash_column):
-                cash_column[num] = 1
+            if type_rro == 0:
+                for num, cash in enumerate(cash_column):
+                    cash_column[num] = 1
+            else:
+                for num, cash in enumerate(cash_column):
+                    if cash == 'Картка':
+                        cash_column[num] = 0
+                    else:
+                        cash_column[num] = 1
 
-            sum_product = data_frame[columns[40]].values.tolist()
+            sum_product = data_frame[columns[11]].values.tolist()
 
             return date_column, cash_column, sum_product
 
@@ -1053,7 +1068,7 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
             cash_column = data_frame[columns[4]].values.tolist()
 
             for row_num, row in enumerate(cash_column):
-                if type(row) is str and 'Готівка' in row:
+                if type(row) is str and 'Готівка' in row or 'Накладений платіж' in row:
                     cash_column[row_num] = 1
                 else:
                     cash_column[row_num] = 0
