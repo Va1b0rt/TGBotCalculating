@@ -1067,6 +1067,12 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
                     date_column[row_num] = date
             cash_column = data_frame[columns[4]].values.tolist()
 
+            transaction_types = data_frame[columns[1]].values.tolist()
+
+            for num, t_type in enumerate(transaction_types):
+                if 'RETURN' in t_type:
+                    date_column[num] = ''
+
             for row_num, row in enumerate(cash_column):
                 if type(row) is str and 'Готівка' in row or 'Накладений платіж' in row:
                     cash_column[row_num] = 1
