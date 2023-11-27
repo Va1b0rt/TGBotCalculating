@@ -14,3 +14,9 @@ class StatesMenu(StatesGroup):
     test_state = State()
     tittle_question = State()
     tittle_question_prro = State()
+
+    # EMPTY BOOK
+    empty_book_change_month = State()
+    change_name = State()
+
+

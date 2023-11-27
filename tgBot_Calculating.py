@@ -14,7 +14,8 @@ from Exceptions import NotHaveTemplate, UnknownEncoding, TemplateDoesNotFit, Not
 from calculating import get_result, get_timesheet_data
 from XLAssembler import TableAssembler
 from cloud_sheets import Employers
-from keyboards import button_handle_extracts, keyboard_handle_extracts, keyboard_handle_extracts_timesheet
+from keyboards import button_handle_extracts, keyboard_handle_extracts, keyboard_handle_extracts_timesheet, \
+    month_keyboard
 from logger import Logger
 from config import BOT_API_TOKEN
 from states import StatesMenu
@@ -43,7 +44,8 @@ commands = ['/start',
             '/extract',
             '/extract_all',
             '/extract_test',
-            '/bok_prro']
+            '/bok_prro',
+            '/get_empty_book']
 
 
 @dp.message_handler(commands=['start'], state='*')
@@ -560,6 +562,50 @@ async def handle_extract(message: Message, state: FSMContext):
     await state.finish()
     await StatesMenu.main.set()
 # END PRRO
+
+
+# EMPTY BOOK
+@logger.catch
+@dp.message_handler(commands=['get_empty_book'], state='*')
+async def empty_book_command(message: Message, state: FSMContext):
+
+
+    #await StatesMenu.bok_prro.set()
+
+    async with state.proxy() as data:
+        data.clear()
+
+    await StatesMenu.empty_book_change_month.set()
+    await bot.send_message(message.chat.id, 'Выберите месяц:', reply_markup=month_keyboard)
+
+
+@logger.catch
+@dp.callback_query_handler(lambda call: call.data.startswith("month_"), state=StatesMenu.empty_book_change_month)
+async def set_name(call: CallbackQuery, state: FSMContext):
+    async with state.proxy() as data:
+        data['month'] = call.data.replace('month_', '')
+
+    await StatesMenu.change_name.set()
+    await bot.send_message(call.message.chat.id, 'Укажите имя владельца выписки:')
+
+
+@logger.catch
+@dp.message_handler(lambda message: message.text not in commands,
+                    content_types=ContentType.TEXT, state=StatesMenu.change_name)
+async def generate_empty_extract(message: Message, state: FSMContext):
+    title = message.text
+    async with state.proxy() as data:
+        month = data['month']
+
+    ta = TableAssembler(_tittle=title, _month=month)
+    result_tables, _ = ta.get_bytes()
+
+    for _result in result_tables:
+        await bot.send_document(message.chat.id,
+                                types.InputFile(_result, filename=f'RESULT_{title}.xls'))
+
+
+# END EMPTY BOOK
 
 
 async def send_document_group(chat_id, documents, title: str):

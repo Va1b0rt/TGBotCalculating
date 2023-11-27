@@ -51,14 +51,26 @@ def get_days_of_month(month: int, year: int) -> list[str]:
 
 
 class TableAssembler:
-    def __init__(self, raw_body: dict[str, Union[float, str, list[str]]]):
+    def __init__(self, raw_body: dict[str, Union[float, str, list[str]]] = None,
+                 _month: str = None,
+                 _tittle: str = None):
         self.months_count: list[str] = []
         self.years_actual: list[str] = []
         self.raw_body = raw_body
-        self.tittle = raw_body['tittle']
+        if self.raw_body:
+            self.tittle = raw_body['tittle']
+        else:
+            self.tittle = _tittle
+
         self.workbooks: list[Workbook] = []
-        self._set_month_count()
-        self._set_years_count()
+
+        if self.raw_body:
+            self._set_month_count()
+            self._set_years_count()
+        else:
+            self.months_count.append(_month[:2])
+            self.years_actual.append(str(datetime.datetime.now().year))
+
         self.fop_sums: list[list[str]] = []
         self.all_months_sum = 0
 
@@ -117,8 +129,9 @@ class TableAssembler:
         self.workbook_count = 0
         for actual_year in self.years_actual:
             for num, month in enumerate(self.months_count):
-                if not self._month_in_this_year(month, actual_year):
-                    continue
+                if self.raw_body:
+                    if not self._month_in_this_year(month, actual_year):
+                        continue
 
                 self.workbooks.append(Workbook())
                 sheet: Worksheet = self.workbooks[self.workbook_count].active
@@ -312,7 +325,7 @@ class TableAssembler:
                 # Строка на которой закончилась итерация
                 last_row: int = 13
 
-                if not list(self.raw_body.keys()):
+                if self.raw_body and not list(self.raw_body.keys()):
                     return
 
                 def get_key(keys_lst: list[str]) -> str:
@@ -324,7 +337,7 @@ class TableAssembler:
 
 
 
-                actual_date = datetime.datetime.strptime(get_key(list(self.raw_body.keys())), '%d.%m.%Y')
+                #actual_date = datetime.datetime.strptime(get_key(list(self.raw_body.keys())), '%d.%m.%Y')
 
                 days: list[str] = get_days_of_month(int(month), int(actual_year))
 
@@ -339,7 +352,10 @@ class TableAssembler:
                     except:
                         pass
 
-                    if_contains = True if day_now in self.raw_body else False
+                    if self.raw_body:
+                        if_contains = True if day_now in self.raw_body else False
+                    else:
+                        if_contains = False
 
                     sheet[f'B{str(row_num)}'].border = left_border
                     sheet[f'B{str(row_num)}'].font = all_in_font
@@ -412,7 +428,7 @@ class TableAssembler:
                 sheet[f'E{str(last_row)}'].border = border
                 sheet[f'E{str(last_row)}'].font = footer_font
                 sheet[f'E{str(last_row)}'].alignment = alignment_center
-                sheet[f'E{str(last_row)}'] = self.raw_body['months'][int(month) - 1]
+                sheet[f'E{str(last_row)}'] = self.raw_body['months'][int(month) - 1] if self.raw_body else '0.00'
 
                 sheet[f'F{str(last_row)}'].border = border
                 sheet[f'F{str(last_row)}'].font = footer_font
@@ -422,7 +438,7 @@ class TableAssembler:
                 sheet[f'G{str(last_row)}'].border = border
                 sheet[f'G{str(last_row)}'].font = footer_font
                 sheet[f'G{str(last_row)}'].alignment = alignment_center
-                sheet[f'G{str(last_row)}'] = self.raw_body['months'][int(month) - 1]
+                sheet[f'G{str(last_row)}'] = self.raw_body['months'][int(month) - 1] if self.raw_body else '0.00'
 
                 sheet[f'H{str(last_row)}'].border = border
                 sheet[f'H{str(last_row)}'].font = footer_font
@@ -437,7 +453,7 @@ class TableAssembler:
                 sheet[f'J{str(last_row)}'].border = border
                 sheet[f'J{str(last_row)}'].font = footer_font
                 sheet[f'J{str(last_row)}'].alignment = alignment_center
-                sheet[f'J{str(last_row)}'] = self.raw_body['months'][int(month) - 1]
+                sheet[f'J{str(last_row)}'] = self.raw_body['months'][int(month) - 1] if self.raw_body else '0.00'
 
                 sheet[f'K{str(last_row)}'].border = border
                 sheet[f'K{str(last_row)}'].font = footer_font
@@ -467,7 +483,7 @@ class TableAssembler:
                 sheet[f'E{str(last_row)}'].border = border
                 sheet[f'E{str(last_row)}'].font = footer_font
                 sheet[f'E{str(last_row)}'].alignment = alignment_center
-                sheet[f'E{str(last_row)}'] = self.raw_body['months'][int(month) - 1]
+                sheet[f'E{str(last_row)}'] = self.raw_body['months'][int(month) - 1] if self.raw_body else '0.00'
 
                 sheet[f'F{str(last_row)}'].fill = blue_fill
                 sheet[f'F{str(last_row)}'].border = border
@@ -479,7 +495,7 @@ class TableAssembler:
                 sheet[f'G{str(last_row)}'].border = border
                 sheet[f'G{str(last_row)}'].font = footer_font
                 sheet[f'G{str(last_row)}'].alignment = alignment_center
-                sheet[f'G{str(last_row)}'] = self.raw_body['months'][int(month) - 1]
+                sheet[f'G{str(last_row)}'] = self.raw_body['months'][int(month) - 1] if self.raw_body else '0.00'
 
                 sheet[f'H{str(last_row)}'].fill = blue_fill
                 sheet[f'H{str(last_row)}'].border = border
@@ -497,7 +513,7 @@ class TableAssembler:
                 sheet[f'J{str(last_row)}'].border = border
                 sheet[f'J{str(last_row)}'].font = footer_font
                 sheet[f'J{str(last_row)}'].alignment = alignment_center
-                sheet[f'J{str(last_row)}'] = self.raw_body['months'][int(month) - 1]
+                sheet[f'J{str(last_row)}'] = self.raw_body['months'][int(month) - 1] if self.raw_body else '0.00'
 
                 sheet[f'K{str(last_row)}'].fill = blue_fill
                 sheet[f'K{str(last_row)}'].border = border
@@ -525,7 +541,7 @@ class TableAssembler:
                 sheet[f'B{str(last_row)}'].alignment = alignment_center
                 sheet[f'B{str(last_row)}'] = f'Наростаючим підсумком за {actual_year} рік:'
 
-                self.all_months_sum += float(self.raw_body['months'][int(month) - 1])
+                self.all_months_sum += float(self.raw_body['months'][int(month) - 1]) if self.raw_body else 0.00
 
                 sheet[f'E{str(last_row)}'].fill = beige_fill
                 sheet[f'E{str(last_row)}'].border = border
@@ -603,7 +619,7 @@ class TableAssembler:
 
                 sheet['M9'].border = Border(left=Side(border_style='thin', color='000000'))
 
-                if month in self.raw_body:
+                if self.raw_body and month in self.raw_body:
                     self.__set_fop_sums([f'\n{months_names[int(month) - 1]} {actual_year}\n', *self.raw_body[month]])
 
                 self.workbook_count += 1

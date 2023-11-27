@@ -18,7 +18,7 @@ class Recruitment(Blank_PDF):
         self._path = r'.\tables\tmp\recruitment'
 
         self.replacement_dict = {
-            'FOPNAME': {'text': 'ФОП НАГРУЗИЛОВА АННА АКАКИЕВНА'.upper(),
+            'FOPNAME': {'text': f'ФОП НАГРУЗИЛОВА АННА АКАКИЕВНА'.upper(),
                         'font': 'Times New Roman',
                         'font_size': 14,
                         'text_color': RGBColor(0, 0, 0),
