@@ -301,9 +301,20 @@ class CSVExtractor:
                 raise NoColumn('"Валюта"')
 
             for num, date in enumerate(self.date_column):
-                if currency_column[num] in ('USD', 'EUR'):
+                cur = ''
+                if type(currency_column[num]) is int:
+                    if currency_column[num] == 840:
+                        cur = 'USD'
+                    elif currency_column[num] == 978:
+                        cur = 'EUR'
+                elif type(currency_column[num]) is str and currency_column[num] in ('840', '978'):
+                    if currency_column[num] == '840':
+                        cur = 'USD'
+                    elif currency_column[num] == '978':
+                        cur = 'EUR'
+                if cur in ('USD', 'EUR'):
                     if type(date) is str and '.' in date:
-                        rate = DBClient().get_rate_in_date(datetime.datetime.strptime(date, '%d.%m.%Y'))[currency_column[num]]
+                        rate = DBClient().get_rate_in_date(datetime.datetime.strptime(date, '%d.%m.%Y'))[cur]
                         sum_column[num] = round(float(sum_column[num]) * rate, 2)
 
         self.sum_column = sum_column
