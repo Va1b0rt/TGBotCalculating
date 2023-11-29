@@ -1027,6 +1027,9 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
                     cash_column[row_num] = 0
 
             sum_product = data_frame[columns[19]].values.tolist()
+            for num, sum_cell in enumerate(sum_product):
+                if type(sum_cell) is str and ' / ' in sum_cell:
+                    sum_product[num] = float(sum_cell.split(' / ')[1])
 
             return date_column, cash_column, sum_product
 
