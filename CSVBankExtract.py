@@ -307,10 +307,10 @@ class CSVExtractor:
                         cur = 'USD'
                     elif currency_column[num] == 978:
                         cur = 'EUR'
-                elif type(currency_column[num]) is str and currency_column[num] in ('840', '978'):
-                    if currency_column[num] == '840':
+                elif type(currency_column[num]) is str and currency_column[num] in ('840', '978', 'USD', 'EUR'):
+                    if currency_column[num] in ('840', 'USD'):
                         cur = 'USD'
-                    elif currency_column[num] == '978':
+                    elif currency_column[num] in ('978', 'EUR'):
                         cur = 'EUR'
                 if cur in ('USD', 'EUR'):
                     if type(date) is str and '.' in date:
