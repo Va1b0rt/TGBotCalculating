@@ -25,5 +25,3 @@ class EntrepreneursMenu(StatesGroup):
     entrepreneur_menu = State()
     extracts_menu = State()
     extract_detail = State()
-
-

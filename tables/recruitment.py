@@ -18,12 +18,12 @@ class Recruitment(Blank_PDF):
         self._path = r'.\tables\tmp\recruitment'
 
         self.replacement_dict = {
-            'FOPNAME': {'text': f'ФОП НАГРУЗИЛОВА АННА АКАКИЕВНА'.upper(),
+            'FOPNAME': {'text': f'ФОП {employer.name}'.upper(),
                         'font': 'Times New Roman',
                         'font_size': 14,
                         'text_color': RGBColor(0, 0, 0),
                         'bold': True},
-            'ADDRESS': {'text': 'УКРАЇНА, 02160, МІСТО КИЇВ, ДНІПРОВСЬКИЙ Р-Н, ВУЛ. РЕГЕНЕРАТОРНА, БУД. 4, КВ. 165',
+            'ADDRESS': {'text': f'{employer.residence}'.upper(),
                         'font': 'Times New Roman',
                         'font_size': 11,
                         'text_color': RGBColor(70, 70, 70),
@@ -33,7 +33,7 @@ class Recruitment(Blank_PDF):
                      'font_size': 11,
                      'text_color': RGBColor(70, 70, 70),
                      'bold': False},
-            'TELEPHONE': {'text': '+3809965344',
+            'TELEPHONE': {'text': f'{employer.phone}',
                           'font': 'Times New Roman',
                           'font_size': 11,
                           'text_color': RGBColor(70, 70, 70),

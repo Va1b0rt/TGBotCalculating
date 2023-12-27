@@ -23,6 +23,8 @@ workers_sheet = config.get('GOOGLE', 'workers_sheet')
 workers_worksheet = config.get('GOOGLE', 'workers_worksheet')
 statement_columns = config.get('GOOGLE', 'statement_columns')
 statement_worksheet = config.get('GOOGLE', 'statement_worksheet')
+entrepreneurs = config.get('GOOGLE', 'entrepreneurs')
+entrepreneurs_worksheet = config.get('GOOGLE', 'entrepreneurs_worksheet')
 
 
 # DataBase

@@ -2,7 +2,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 from config import (keyfile, sheet_url, worksheet as worksheet_name, workers_sheet, workers_worksheet,
-                    statement_columns, statement_worksheet)
+                    statement_columns, statement_worksheet, entrepreneurs, entrepreneurs_worksheet)
 from tables.Models import Employer, Worker
 
 IGNORE_LIST = ['Рахуємо суми з + (ігнор рядків із найменуванням нижче) "ПРИВАТ"',
@@ -143,6 +143,41 @@ class Columns:
                 self.columns['currency'].append(row[5])
 
 
+class Entrepreneurs(dict):
+    def __init__(self):
+        super().__init__()
+        self._feel_entrepreneurs()
+
+    @property
+    def keys(self) -> list[str]:
+        """
+        :return: list of keys from the dictionary of entrepreneurs
+        """
+        return list(super().keys())
+
+    @property
+    def values(self) -> list[str]:
+        """
+        :return: list of values from the dictionary of entrepreneurs
+        """
+        return list(super().values())
+
+    def _feel_entrepreneurs(self):
+        """
+        fills in the entrepreneurs' dictionary
+        :return: None
+        """
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(keyfile, scope)
+        client = gspread.authorize(credentials)
+        sheet = client.open_by_url(entrepreneurs)
+        worksheet = sheet.worksheet(entrepreneurs_worksheet)
+        data = worksheet.get_all_values()
+
+        for row in data:
+            if row[1]:
+                self.update({row[0]: row[1]})
+
+
 if __name__ == '__main__':
     #ptrns = Patterns()
 #
@@ -158,5 +193,8 @@ if __name__ == '__main__':
 #    emp = Employers()
 #    for employer in emp.get_employers():
 #        print(employer.model_dump_json())
-    col = Columns()
-    print(col.columns)
+#    col = Columns()
+#    print(col.columns)
+
+    entrepreneurs = Entrepreneurs()
+    print(entrepreneurs)

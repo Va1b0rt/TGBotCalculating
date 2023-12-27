@@ -75,12 +75,12 @@ def entrepreneurs_keyboard(entrepreneurs: list[Persons]) -> InlineKeyboardMarkup
     return InlineKeyboardMarkup().add(*buttons)
 
 
-def extracts_keyboard(extracts: list[str]) -> InlineKeyboardMarkup:
+def extracts_keyboard(extracts: list[dict]) -> InlineKeyboardMarkup:
     buttons = []
     for extract in extracts:
-        hashed_data = hashlib.sha256(extract.encode()).digest()
+        hashed_data = hashlib.sha256(extract['name'].encode()).digest()
         short_hash = base64.urlsafe_b64encode(hashed_data)[:64].decode()
-        buttons.append(InlineKeyboardButton(extract, callback_data=f'ex_{short_hash}'))
+        buttons.append(InlineKeyboardButton(f"{extract['month']}_{extract['name']}"[:20], callback_data=f'ex_{short_hash}'))
 
     return InlineKeyboardMarkup()\
         .add(*buttons)\

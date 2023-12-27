@@ -4,7 +4,8 @@ import io
 import calendar
 import itertools
 import re
-from typing import Union
+from io import BytesIO
+from typing import Union, Tuple, List
 
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
@@ -53,16 +54,20 @@ def get_days_of_month(month: int, year: int) -> list[str]:
 class TableAssembler:
     def __init__(self, raw_body: dict[str, Union[float, str, list[str]]] = None,
                  _month: str = None,
-                 _tittle: str = None):
+                 _tittle: str = None,
+                 timerange: tuple[datetime, datetime] = None):
+
+        self.timerange: tuple[datetime, datetime] = timerange
         self.months_count: list[str] = []
         self.years_actual: list[str] = []
         self.raw_body = raw_body
         if self.raw_body:
-            self.tittle = raw_body['tittle']
+            self.tittle = raw_body['title']
         else:
             self.tittle = _tittle
 
         self.workbooks: list[Workbook] = []
+        self.wb_dates: list[dict[str, int]] = []
 
         if self.raw_body:
             self._set_month_count()
@@ -72,6 +77,11 @@ class TableAssembler:
             self.years_actual.append(str(datetime.datetime.now().year))
 
         self.fop_sums: list[list[str]] = []
+        self.quarter_1 = 0
+        self.quarter_2 = 0
+        self.quarter_3 = 0
+        self.quarter_4 = 0
+
         self.all_months_sum = 0
 
         self.__assemble_workbook()
@@ -84,7 +94,9 @@ class TableAssembler:
 
                 if self.months_count and (key.split('.')[1] if len(key) > 2 else key) in self.months_count:
                     continue
-
+                month = int(key.split('.')[1] if len(key) > 2 else key)
+                #if self.timerange[0].month > month > self.timerange[1].month:
+                #    continue
                 self.months_count.append(key.split('.')[1] if len(key) > 2 else key)
 
         self.months_count = sorted(self.months_count, key=lambda x: int(x))
@@ -125,6 +137,37 @@ class TableAssembler:
         return False
 
     @logger.catch
+    def _if_date_not_fall_in_range(self, month, year):
+        if self.timerange[0].year > int(year) > self.timerange[1].year:
+            return True
+        if self.timerange[0].month > int(month) > self.timerange[1].month:
+            return True
+
+        return False
+
+    @logger.catch
+    def set_quarter_sum(self, amount: float, month: int):
+        if month in (1, 2, 3):
+            self.quarter_1 += amount
+        elif month in (4, 5, 6):
+            self.quarter_2 += amount
+        elif month in (7, 8, 9):
+            self.quarter_3 += amount
+        elif month in (10, 11, 12):
+            self.quarter_4 += amount
+
+    @logger.catch
+    def get_quarter_sum(self, month: int) -> float:
+        if month in (1, 2, 3):
+            return self.quarter_1
+        elif month in (4, 5, 6):
+            return self.quarter_2
+        elif month in (7, 8, 9):
+            return self.quarter_3
+        elif month in (10, 11, 12):
+            return self.quarter_4
+
+    @logger.catch
     def __assemble_workbook(self):
         self.workbook_count = 0
         for actual_year in self.years_actual:
@@ -132,8 +175,11 @@ class TableAssembler:
                 if self.raw_body:
                     if not self._month_in_this_year(month, actual_year):
                         continue
+                    if self._if_date_not_fall_in_range(month, actual_year):
+                        continue
 
                 self.workbooks.append(Workbook())
+                self.wb_dates.append({'month': month, 'year': actual_year})
                 sheet: Worksheet = self.workbooks[self.workbook_count].active
 
                 # ROWS/COLUMNS OPTIONS
@@ -479,11 +525,14 @@ class TableAssembler:
                 sheet[f'B{str(last_row)}'].alignment = alignment_center
                 sheet[f'B{str(last_row)}'] = f'Наростаючим підсумком за {get_quarter(int(month))} квартал {actual_year} року:'
 
+                self.set_quarter_sum(self.raw_body['months'][int(month)-1], int(month))
+                quarter_sum = self.get_quarter_sum(int(month))
+
                 sheet[f'E{str(last_row)}'].fill = blue_fill
                 sheet[f'E{str(last_row)}'].border = border
                 sheet[f'E{str(last_row)}'].font = footer_font
                 sheet[f'E{str(last_row)}'].alignment = alignment_center
-                sheet[f'E{str(last_row)}'] = self.raw_body['months'][int(month) - 1] if self.raw_body else '0.00'
+                sheet[f'E{str(last_row)}'] = quarter_sum
 
                 sheet[f'F{str(last_row)}'].fill = blue_fill
                 sheet[f'F{str(last_row)}'].border = border
@@ -495,7 +544,7 @@ class TableAssembler:
                 sheet[f'G{str(last_row)}'].border = border
                 sheet[f'G{str(last_row)}'].font = footer_font
                 sheet[f'G{str(last_row)}'].alignment = alignment_center
-                sheet[f'G{str(last_row)}'] = self.raw_body['months'][int(month) - 1] if self.raw_body else '0.00'
+                sheet[f'G{str(last_row)}'] = quarter_sum
 
                 sheet[f'H{str(last_row)}'].fill = blue_fill
                 sheet[f'H{str(last_row)}'].border = border
@@ -513,7 +562,7 @@ class TableAssembler:
                 sheet[f'J{str(last_row)}'].border = border
                 sheet[f'J{str(last_row)}'].font = footer_font
                 sheet[f'J{str(last_row)}'].alignment = alignment_center
-                sheet[f'J{str(last_row)}'] = self.raw_body['months'][int(month) - 1] if self.raw_body else '0.00'
+                sheet[f'J{str(last_row)}'] = quarter_sum
 
                 sheet[f'K{str(last_row)}'].fill = blue_fill
                 sheet[f'K{str(last_row)}'].border = border
@@ -631,13 +680,22 @@ class TableAssembler:
             print(f"Table saved to {self.months_count[num]}_{filename}")
 
     @logger.catch
-    def get_bytes(self) -> tuple[list[io.BytesIO], Union[io.BytesIO, None]]:
-        workbooks_bytes: list[io.BytesIO] = []
-        for wb in self.workbooks:
+    def get_bytes(self) -> tuple[list[dict], BytesIO]:
+
+        workbooks_bytes: list[dict] = []
+
+        for num, wb in enumerate(self.workbooks):
+            if int(self.wb_dates[num]['year']) < self.timerange[0].year or int(self.wb_dates[num]['year']) > self.timerange[1].year:
+                continue
+            if int(self.wb_dates[num]['month']) < self.timerange[0].month or int(self.wb_dates[num]['month']) > self.timerange[1].month:
+                continue
+
             output = io.BytesIO()
             wb.save(output)
             output.seek(0)
-            workbooks_bytes.append(output)
+            workbooks_bytes.append({"workbooks_bytes":  output,
+                                    "workbooks_month": months_names[int(self.wb_dates[num]['month']) - 1]})
+            #workbooks_bytes.append(output)
 
         if len(self.fop_sums) > 0:
 
@@ -650,6 +708,5 @@ class TableAssembler:
 
         else:
             fop_info_bytes = None
-
 
         return workbooks_bytes, fop_info_bytes
