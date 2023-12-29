@@ -3,6 +3,7 @@ import io
 import math
 import re
 from typing import Union
+from dateutil import parser
 
 import cchardet
 import pandas as pd
@@ -211,9 +212,10 @@ class CSVExtractor:
 
         if not column_date:
             raise NoColumn('"Дата"')
-
         for num, date_cell in enumerate(column_date):
-            cell = date_cell.replace('"', '').replace('\ufeff', '')
+            cell = date_cell.replace('"', '').replace('\ufeff', '').replace('/', '.')
+            #parsed_date = parser.parse(cell)
+            #cell = parsed_date.strftime('%d.%m.%Y')
             column_date[num] = cell
 
             if self._check_date(cell):
@@ -256,9 +258,11 @@ class CSVExtractor:
                 if name_column_in_sheet.split('/')[0] in self.df_columns and name_column_in_sheet.split('/')[1] in self.df_columns:
                     column_name = name_column_in_sheet
                     break
+
             if name_column_in_sheet in self.df_columns:
                 column_name = name_column_in_sheet
                 break
+
         if column_name == '':
             return None
 
@@ -289,7 +293,10 @@ class CSVExtractor:
         for num, sum_cell in enumerate(sum_column):
             if type(sum_cell) is str:
                 try:
-                    sum_column[num] = float(sum_cell.replace(' ', '').replace(',', '.'))
+                    amount = sum_cell
+                    if amount.count(',') > 1 or (amount.count(',') > 0 and amount.count('.') > 0):
+                        amount = amount.replace(',', '')
+                    sum_column[num] = float(amount.replace(' ', '').replace(',', '.'))
                 except Exception as ex:
                     logger.warning(ex)
 

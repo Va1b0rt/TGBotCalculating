@@ -10,11 +10,11 @@ import cchardet
 import numpy
 import pandas as pd
 
-import DB_API
 from CSVBankExtract import CSVExtractor
-from DB_API import DBClient
+from DBAPI.Models import Transaction as DBTransaction
+from DBAPI.DBClient import DBClient
 from Exceptions import NotExistsPerson, NotHaveTemplate, UnknownEncoding, TemplateDoesNotFit, NotHaveTemplatePRRO
-from Models import Transaction
+from Models import Transaction, fourDFMainModel
 from logger import Logger
 from cloud_sheets import Patterns
 from vkursi_API.PersonInfo import get_person_info
@@ -832,7 +832,7 @@ def process_transactions(holder_id: int) -> tuple[dict[str, Union[float, str, li
     result: dict[str, Union[float, str]] = {}
 
     rows_text: str = ''
-    transactions: list[DB_API.Transaction] = DBClient().get_transactions(holder_id=holder_id)
+    transactions: list[DBTransaction] = DBClient().get_transactions(holder_id=holder_id)
 
     for transaction in transactions:
         if not check_date(transaction.Date) or transaction.Amount < 0:
@@ -1255,16 +1255,36 @@ async def add_list_fop_sums(data: dict[str, Union[float, str, list[str]]],
                 sum_fops[str(transaction.date.month)][f'{transaction.egrpou}'][0] += transaction.amount
             else:
                 sum_fops[str(transaction.date.month)][f'{transaction.egrpou}'] = [transaction.amount,
-                                                                                  transaction.name]
+                                                                                  transaction.name,
+                                                                                  transaction.extract_name,
+                                                                                  transaction.egrpou,
+                                                                                  transaction.holder_id,
+                                                                                  transaction.date]
         else:
-            sum_fops[str(transaction.date.month)] = {f'{transaction.egrpou}': [transaction.amount, transaction.name]}
+            sum_fops[str(transaction.date.month)] = {f'{transaction.egrpou}': [transaction.amount,
+                                                                               transaction.name,
+                                                                               transaction.extract_name,
+                                                                               transaction.egrpou,
+                                                                               transaction.holder_id,
+                                                                               transaction.date]}
 
     for _key in list(sum_fops.keys()):
         for key, value in sum_fops[_key].items():
+            if int(key) == value[4]:
+                continue
+
             if _key in result:
                 result[_key].append(f'ЕГРПОУ: {key} СУММА: {value[0]} НАИМЕНОВАНИЕ: {value[1]}')
             else:
                 result[_key] = [f'ЕГРПОУ: {key} СУММА: {value[0]} НАИМЕНОВАНИЕ: {value[1]}']
+            hash_data = hashlib.sha256(f'{value[4]}{value[5].strftime("%d.%m.%Y")}{value[0]}{value[3]}{value[1]}'.encode())
+            DBClient().add_fourDF(fourDFMainModel(FourDFHash=hash_data.hexdigest(),
+                                                  ExtractName=value[2],
+                                                  Holder_id=value[4],
+                                                  Date=value[5],
+                                                  Amount=value[0],
+                                                  EntrepreneurID=value[3],
+                                                  EntrepreneurName=value[1]))
 
     return {**data, **result}
 
@@ -1413,7 +1433,7 @@ async def get_timerange(transactions: list[Transaction]) -> tuple[datetime, date
 
 
 async def month_checker(holder_id) -> list[int]:
-    transactions: list[DB_API.Transaction] = DBClient().get_dates(holder_id=holder_id)
+    transactions: list[DBTransaction] = DBClient().get_dates(holder_id=holder_id)
 
     months: list[int] = []
     result: list[int] = []

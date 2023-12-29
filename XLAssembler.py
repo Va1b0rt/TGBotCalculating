@@ -668,8 +668,8 @@ class TableAssembler:
 
                 sheet['M9'].border = Border(left=Side(border_style='thin', color='000000'))
 
-                if self.raw_body and month in self.raw_body:
-                    self.__set_fop_sums([f'\n{months_names[int(month) - 1]} {actual_year}\n', *self.raw_body[month]])
+                if self.raw_body and str(int(month)) in self.raw_body:
+                    self.__set_fop_sums([f'\n{months_names[int(month) - 1]} {actual_year}\n', *self.raw_body[str(int(month))]])
 
                 self.workbook_count += 1
 

@@ -3,8 +3,11 @@ import base64
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+from DBAPI.DBClient import DBClient
+from DBAPI.DBExceptions import NotExistsFourDF
 from DB_API import Persons
 from cloud_sheets import Entrepreneurs
+from utils.StringCompresser import shorten_name
 
 button_timesheet_acquiring = InlineKeyboardButton('Табель (эквайринг)', callback_data='button_timesheet_acquiring')
 button_extract = InlineKeyboardButton('Выписка', callback_data='button_extract')
@@ -69,8 +72,10 @@ def entrepreneurs_keyboard(entrepreneurs: list[Persons]) -> InlineKeyboardMarkup
     buttons = []
 
     for entrepreneur in entrepreneurs:
+
         buttons.append(InlineKeyboardButton(entrepreneur.Name,
-                                            callback_data=f'fop_{entrepreneur.Name}_{entrepreneur.Person_ID}'))
+                                            callback_data=f'fop_{shorten_name(entrepreneur.Name)}_'
+                                                          f'{entrepreneur.Person_ID}'))
 
     return InlineKeyboardMarkup().add(*buttons)
 
@@ -87,11 +92,22 @@ def extracts_keyboard(extracts: list[dict]) -> InlineKeyboardMarkup:
         .row(InlineKeyboardButton('Назад', callback_data='back_extracts_menu'))
 
 
-def extract_details_keyboard(extract_name: str) -> InlineKeyboardMarkup:
-    buttons = [
-        InlineKeyboardButton('Удалить', callback_data=f'delete_extract_{extract_name}'),
-        InlineKeyboardButton('Назад', callback_data='back_extracts_details')
-    ]
+def extract_details_keyboard(extract_name: str, holder_id: int) -> InlineKeyboardMarkup:
+
+    try:
+        fourDFs = DBClient().get_fourDF(holder_id, extract_name)
+
+        buttons = [
+            InlineKeyboardButton('Показать 4ДФ', callback_data=f'fourDF_{extract_name}'),
+            InlineKeyboardButton('Удалить', callback_data=f'delete_extract_{extract_name}'),
+            InlineKeyboardButton('Назад', callback_data='back_extracts_details')
+        ]
+    except NotExistsFourDF:
+        buttons = [
+            InlineKeyboardButton('Удалить', callback_data=f'delete_extract_{extract_name}'),
+            InlineKeyboardButton('Назад', callback_data='back_extracts_details')
+        ]
+
     return InlineKeyboardMarkup().add(*buttons)
 
 # END ENTREPRENEURS MENU

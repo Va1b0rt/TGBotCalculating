@@ -4,69 +4,16 @@ import hashlib
 import base64
 
 import peewee
-from peewee import (MySQLDatabase, Model, BooleanField, BigIntegerField, DateField, FloatField,
-                    TextField, CharField, fn)
+from peewee import MySQLDatabase, fn
 
+from Constants import MONTHS
+from DBAPI import logger
+from DBAPI.DBExceptions import NotExistsFourDF
+from DBAPI.Models import Persons, CurrencyRate, Transaction, FourDF
 from Exceptions import NotExistsPerson
 from config import db_host, db_user, db_passwd, database, db_port
-from logger import Logger
 from utils.Rates import get_rate_in_date
-from Models import Transaction as tr
-
-cls_logger = Logger()
-logger = cls_logger.get_logger
-
-
-class Persons(Model):
-    Person_ID = BigIntegerField(primary_key=True, verbose_name='ЕГРПОУ')
-    Name = CharField(max_length=255, verbose_name='Имя ФОПа')
-    Is_FOP = BooleanField(verbose_name='Является ли ФОПом')
-
-    class Meta:
-        db_table = 'persons'
-
-
-class CurrencyRate(Model):
-    Date = DateField(primary_key=True)
-    EUR = FloatField()
-    USD = FloatField()
-
-    class Meta:
-        db_table = 'CurrencyRate'
-
-
-class FormattedDateField(DateField):
-    def db_value(self, value):
-        return value
-
-    def python_value(self, value):
-        if value:
-            return datetime.datetime.strptime(f'{value}', "%Y-%m-%d")
-
-
-class Transaction(Model):
-    Transaction_Hash = CharField(primary_key=True, index=True, unique=True, max_length=255)
-    Extract_name = CharField(max_length=255, verbose_name='Название выписки')
-    Holder_id = BigIntegerField(verbose_name='Holder_ID')
-    Date = FormattedDateField()
-    Amount = FloatField(verbose_name="Сумма транзакции")
-    Purpose = TextField(verbose_name="Назначение платежа")
-    EGRPOU = BigIntegerField(verbose_name="ЕГРПОУ код отправителя/получателя")
-    Name = CharField(max_length=255, verbose_name="Имя того кто сделал перевод")
-    transaction_types = ('extract', 'prro')
-    Type = CharField(choices=transaction_types)
-
-    class Meta:
-        db_table = 'Transactions'
-
-
-class FourDF(Model):
-    FourDFHash = CharField(primary_key=True, index=True, unique=True, max_length=255)
-    Holder_id = BigIntegerField(verbose_name='Holder_ID')
-    Date = FormattedDateField()
-    EntrepreneurID = BigIntegerField(verbose_name='Entrepreneur_ID')
-    Amount = FloatField(verbose_name="Сумма транзакции")
-    EntrepreneurName = CharField(max_length=255, verbose_name="Имя того кому сделал перевод")
+from Models import Transaction as tr, fourDFMainModel
 
 
 class DBClient:
@@ -213,10 +160,7 @@ class DBClient:
             raise Exception(f"Во время получения транзакций для пользователя '{holder_id}' произошла ошибка")
 
     def get_list_extracts(self, holder_id: int) -> list[dict]:
-        months_names: list[str] = ['січень', 'лютий', 'березень',
-                                   'квітень', 'травень', 'червень',
-                                   'липень', 'серпень', 'вересень',
-                                   'жовтень', 'листопад', 'грудень']
+
         try:
             subquery = (
                 Transaction
@@ -234,7 +178,7 @@ class DBClient:
             )
 
             return [{'name': transaction.Extract_name,
-                     'month': months_names[transaction.Date.month - 1] if transaction.Date else None}
+                     'month': MONTHS[transaction.Date.month - 1] if transaction.Date else None}
                     for transaction in unique_transactions]
         except Exception as ex:
             logger.exception(ex)
@@ -299,6 +243,8 @@ class DBClient:
                 # Если ни одной записи не было удалено, возможно, нужно обработать этот случай
                 raise Exception(f"Записи с Extract_name '{extract_name}' для пользователя '{holder_id}' не найдены.")
 
+            self.delete_fourDF(extract_name, holder_id)
+
             return rows_deleted
 
         except Exception as ex:
@@ -316,3 +262,80 @@ class DBClient:
     def if_transaction_exists(self, transaction: tr):
         query = self.__transactions.select().where(self.__transactions.Transaction_Hash == transaction.hash)
         return query.exists()
+
+    # 4DF
+    def if_fourDF_exists(self, fourDF_hash: str):
+        query = self.__fourDF.select().where(self.__fourDF.FourDFHash == fourDF_hash)
+        return query.exists()
+
+    def add_fourDF(self, fourDF_object: fourDFMainModel):
+        """
+        Add transaction in DB
+        :param transaction:
+        :return:
+        """
+        if not self.if_person_exists(fourDF_object.EntrepreneurID):
+            self.add_person(fourDF_object.EntrepreneurID, True, name=fourDF_object.EntrepreneurName)
+
+        try:
+            if self.if_fourDF_exists(fourDF_object.FourDFHash):
+                return
+
+            self.__fourDF.create(FourDFHash=fourDF_object.FourDFHash,
+                                 ExtractName=fourDF_object.ExtractName,
+                                 Holder_id=fourDF_object.Holder_id,
+                                 Date=fourDF_object.Date,
+                                 Amount=fourDF_object.Amount,
+                                 EntrepreneurID=fourDF_object.EntrepreneurID,
+                                 EntrepreneurName=fourDF_object.EntrepreneurName
+                                 )
+        except Exception as ex:
+            raise Exception("Во время добавления 4ДФ произошла ошибка. Детали: \n"
+                            f"[ FourDFHash: {fourDF_object.FourDFHash}\n"
+                            f"  Holder_id: {fourDF_object.Holder_id}\n"
+                            f"  Date: {fourDF_object.Date}\n"
+                            f"  Amount: {fourDF_object.Amount}\n"
+                            f"  EntrepreneurID: {fourDF_object.EntrepreneurID}\n"
+                            f"  EntrepreneurName: {fourDF_object.EntrepreneurName}\n"
+                            f"]")
+
+    def get_fourDF(self, holder_id: int, extract_hash: str) -> str:
+        """
+        :param extract_hash: hashed extract name
+        :param holder_id: EGRPOU holder_id
+        :return: list fourDF
+        """
+        extract_name = self.get_extract_name(extract_hash, holder_id)
+        result = ""
+
+        try:
+            fourDFs = self.__fourDF.select().where(self.__fourDF.Holder_id == int(holder_id) &
+                                                   self.__fourDF.ExtractName == extract_name)
+            if not fourDFs:
+                raise NotExistsFourDF
+
+            result += f'{MONTHS[fourDFs[0].Date.month]}\n\n'
+            for fourDF in fourDFs:
+                result += f'ЕГРПОУ: {fourDF.EntrepreneurID} СУММА: {fourDF.Amount} ' \
+                          f'НАИМЕНОВАНИЕ: {fourDF.EntrepreneurName}\n'
+
+            return result
+        except NotExistsFourDF:
+            raise NotExistsFourDF
+        except Exception as ex:
+            logger.exception(ex)
+            raise Exception(f"Во время получения 4ДФ для пользователя '{holder_id}' произошла ошибка")
+
+    def delete_fourDF(self, extract_name: str, holder_id: int) -> int:
+        try:
+            rows_deleted = FourDF.delete().where(self.__fourDF.Holder_id == holder_id,
+                                                 self.__fourDF.ExtractName == extract_name).execute()
+            if rows_deleted == 0:
+                # Если ни одной записи не было удалено, возможно, нужно обработать этот случай
+                raise Exception(f"Записи с Extract_name '{extract_name}' для пользователя '{holder_id}' не найдены.")
+
+            return rows_deleted
+
+        except Exception as ex:
+            logger.exception(ex)
+            raise Exception(f"Во время удаления 4ДФ для пользователя '{holder_id}' произошла ошибка")

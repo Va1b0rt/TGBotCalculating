@@ -1,10 +1,13 @@
+import io
+
 from aiogram.dispatcher import FSMContext
-from aiogram.types import Message, CallbackQuery, ParseMode
+from aiogram.types import Message, CallbackQuery, ParseMode, InputFile
 
 from BotModule import dp, bot, logger
 from BotModule.Keyboards import entrepreneurs_keyboard, extracts_keyboard, extract_details_keyboard
 from BotModule.States import EntrepreneursMenu
-from DB_API import DBClient
+from DBAPI.DBClient import DBClient
+from DBAPI.DBExceptions import NotExistsFourDF
 
 
 @dp.message_handler(commands=['menu'], state='*')
@@ -89,11 +92,35 @@ async def changed_extract(call: CallbackQuery, state: FSMContext):
                                         f'Количество транзакций: <b>{details["transactions_count"]}.шт</b>\n'
                                         f'Период: <b>{timerange}</b>',
                                         call.message.chat.id, call.message.message_id,
-                                        reply_markup=extract_details_keyboard(data['extract_hash']),
+                                        reply_markup=extract_details_keyboard(data['extract_hash'], data['holder_id']),
                                         parse_mode=ParseMode.HTML)
     except Exception as ex:
         logger.exception(ex)
         await bot.edit_message_text(f'Не удалось получить детализацию по выписке.',
+                                    call.message.chat.id, call.message.message_id)
+
+
+@logger.catch
+@dp.callback_query_handler(lambda call: call.data.startswith('fourDF_'), state=EntrepreneursMenu.extract_detail)
+async def upload_fourDF(call: CallbackQuery, state: FSMContext):
+    extract_hash = call.data.replace('fourDF_', '')
+    async with state.proxy() as data:
+        holder_id = data['holder_id']
+
+    try:
+        fourDF = DBClient().get_fourDF(holder_id, extract_hash)
+        fourDF_file_data = io.BytesIO()
+        fourDF_file_data.write(fourDF.encode())
+        fourDF_file_data.seek(0)
+
+        await bot.send_document(call.message.chat.id, InputFile(fourDF_file_data,
+                                                                filename=f'4Дф_{data["title"]}.txt'))
+    except NotExistsFourDF:
+        await bot.edit_message_text(f'⚠ Не удалось получить 4ДФ так-как он отсутствует в базе.',
+                                    call.message.chat.id, call.message.message_id)
+    except Exception as ex:
+        logger.exception(ex)
+        await bot.edit_message_text(f'⚠ Во время получения 4ДФ произошла неизвестная ошибка.',
                                     call.message.chat.id, call.message.message_id)
 
 
