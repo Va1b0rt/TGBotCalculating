@@ -4,7 +4,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.types import Message, CallbackQuery, ContentType, ParseMode, InputFile
 
 from BotModule import dp, bot, logger, commands
-from BotModule.Common import get_message, find_entrepreneur
+from BotModule.Common import get_message, find_entrepreneur, get_missing_months
 from BotModule.Keyboards import keyboard_handle_extracts_timesheet, entrepreneurs_menu
 from BotModule.States import StatesMenu
 from Exceptions import NotHaveTemplate, UnknownEncoding, TemplateDoesNotFit, NoColumn
@@ -194,9 +194,7 @@ async def generate_timesheet(data, message):
                                         InputFile(result["workbooks_bytes"],
                                                   filename=f'Книга за {result["workbooks_month"]}_'
                                                            f'{data["title"]}.xls'),
-                                        caption=f"У данного пользователя есть выписки не для всех месяцев!\n"
-                                                f"Отсутствующие месяцы: <b> "
-                                                f"{','.join(map(lambda month: str(month+1), lost_months))}</b>",
+                                        caption=f"{get_missing_months(lost_months)}",
                                         parse_mode=ParseMode.HTML)
         else:
             await bot.send_message(message.chat.id,

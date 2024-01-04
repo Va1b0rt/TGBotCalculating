@@ -55,8 +55,10 @@ class TableAssembler:
     def __init__(self, raw_body: dict[str, Union[float, str, list[str]]] = None,
                  _month: str = None,
                  _tittle: str = None,
-                 timerange: tuple[datetime, datetime] = None):
+                 timerange: tuple[datetime, datetime] = None,
+                 empty: bool = False):
 
+        self.empty = empty
         self.timerange: tuple[datetime, datetime] = timerange
         self.months_count: list[str] = []
         self.years_actual: list[str] = []
@@ -525,8 +527,11 @@ class TableAssembler:
                 sheet[f'B{str(last_row)}'].alignment = alignment_center
                 sheet[f'B{str(last_row)}'] = f'Наростаючим підсумком за {get_quarter(int(month))} квартал {actual_year} року:'
 
-                self.set_quarter_sum(self.raw_body['months'][int(month)-1], int(month))
-                quarter_sum = self.get_quarter_sum(int(month))
+                if self.raw_body:
+                    self.set_quarter_sum(self.raw_body['months'][int(month)-1], int(month))
+                    quarter_sum = self.get_quarter_sum(int(month))
+                else:
+                    quarter_sum = '0.00'
 
                 sheet[f'E{str(last_row)}'].fill = blue_fill
                 sheet[f'E{str(last_row)}'].border = border
@@ -590,13 +595,13 @@ class TableAssembler:
                 sheet[f'B{str(last_row)}'].alignment = alignment_center
                 sheet[f'B{str(last_row)}'] = f'Наростаючим підсумком за {actual_year} рік:'
 
-                self.all_months_sum += float(self.raw_body['months'][int(month) - 1]) if self.raw_body else 0.00
+                self.all_months_sum += float(self.raw_body['months'][int(month) - 1]) if self.raw_body else 0.0
 
                 sheet[f'E{str(last_row)}'].fill = beige_fill
                 sheet[f'E{str(last_row)}'].border = border
                 sheet[f'E{str(last_row)}'].font = footer_font
                 sheet[f'E{str(last_row)}'].alignment = alignment_center
-                sheet[f'E{str(last_row)}'] = self.all_months_sum
+                sheet[f'E{str(last_row)}'] = self.all_months_sum if self.all_months_sum != 0.0 else "0.00"
 
                 sheet[f'F{str(last_row)}'].fill = beige_fill
                 sheet[f'F{str(last_row)}'].border = border
@@ -608,7 +613,7 @@ class TableAssembler:
                 sheet[f'G{str(last_row)}'].border = border
                 sheet[f'G{str(last_row)}'].font = footer_font
                 sheet[f'G{str(last_row)}'].alignment = alignment_center
-                sheet[f'G{str(last_row)}'] = self.all_months_sum
+                sheet[f'G{str(last_row)}'] = self.all_months_sum if self.all_months_sum != 0.0 else "0.00"
 
                 sheet[f'H{str(last_row)}'].fill = beige_fill
                 sheet[f'H{str(last_row)}'].border = border
@@ -626,7 +631,7 @@ class TableAssembler:
                 sheet[f'J{str(last_row)}'].border = border
                 sheet[f'J{str(last_row)}'].font = footer_font
                 sheet[f'J{str(last_row)}'].alignment = alignment_center
-                sheet[f'J{str(last_row)}'] = self.all_months_sum
+                sheet[f'J{str(last_row)}'] = self.all_months_sum if self.all_months_sum != 0.0 else "0.00"
 
                 sheet[f'K{str(last_row)}'].fill = beige_fill
                 sheet[f'K{str(last_row)}'].border = border
@@ -685,10 +690,11 @@ class TableAssembler:
         workbooks_bytes: list[dict] = []
 
         for num, wb in enumerate(self.workbooks):
-            if int(self.wb_dates[num]['year']) < self.timerange[0].year or int(self.wb_dates[num]['year']) > self.timerange[1].year:
-                continue
-            if int(self.wb_dates[num]['month']) < self.timerange[0].month or int(self.wb_dates[num]['month']) > self.timerange[1].month:
-                continue
+            if not self.empty:
+                if datetime.datetime(int(self.wb_dates[num]['year']), int(self.wb_dates[num]['month']), 1) < datetime.datetime(self.timerange[0].year, self.timerange[0].month, 1) or datetime.datetime(int(self.wb_dates[num]['year']), int(self.wb_dates[num]['month']), 1) > datetime.datetime(self.timerange[1].year, self.timerange[1].month, 1):
+                    continue
+                #if int(self.wb_dates[num]['month']) < self.timerange[0].month or int(self.wb_dates[num]['month']) > self.timerange[1].month:
+                #    continue
 
             output = io.BytesIO()
             wb.save(output)

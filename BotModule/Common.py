@@ -37,3 +37,11 @@ def find_entrepreneur(name: str, entrepreneurs: dict[str, str]) -> Union[bool, s
             return f'{entrepreneur}_{egrpou}'
 
     return False
+
+
+def get_missing_months(lost_months: list[int]) -> str:
+    if lost_months:
+        return f"У данного пользователя есть выписки не для всех месяцев!\n" \
+               f"Отсутствующие месяцы: <b> {','.join(map(lambda month: str(month+1), lost_months))}</b>"
+
+    return ''

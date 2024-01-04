@@ -37,11 +37,11 @@ async def generate_empty_extract(message: Message, state: FSMContext):
     async with state.proxy() as data:
         month = data['month']
 
-    ta = TableAssembler(_tittle=title, _month=month)
+    ta = TableAssembler(_tittle=title, _month=month, empty=True)
     result_tables, _ = ta.get_bytes()
 
     for _result in result_tables:
         await bot.send_document(message.chat.id,
                                 InputFile(_result["workbooks_bytes"],
                                           filename=f'Книга за {_result["workbooks_month"]}_'
-                                                   f'{data["title"]}.xls'))
+                                                   f'{title}.xls'))
