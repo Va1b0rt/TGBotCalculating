@@ -2,6 +2,7 @@ import calendar
 import datetime
 import io
 
+from dateutil.relativedelta import relativedelta
 from openpyxl import Workbook
 from openpyxl.styles.borders import BORDER_MEDIUM
 from openpyxl.worksheet.worksheet import Worksheet
@@ -23,9 +24,9 @@ class SettlementPayment:
 
         self.Employer: Employer = employer
         self.creation_date: datetime = datetime.datetime.now()
-        self.start_billing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month - 1, 1)
+        self.start_billing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month, 1) - relativedelta(months=1)
         self.end_billing_period: datetime = AppearanceOTWHSheet._get_last_day_of_month(self.creation_date.year,
-                                                                                       self.creation_date.month - 1)
+                                                                                       self.creation_date.month) - relativedelta(months=1)
         self.worker_counter = 0
 
         self.workbook: Workbook = Workbook()
@@ -61,7 +62,7 @@ class SettlementPayment:
             return _month - 1
 
         month = months_names[get_actual_month(self.creation_date.month)-1]
-        year = self.creation_date.year if month != 1 else self.creation_date.year - 1
+        year = self.creation_date.year if month != 'грудень' else self.creation_date.year - 1
 
         if get_int:
             return f'{get_actual_month(self.creation_date.month)} {year}'
@@ -186,20 +187,22 @@ class SettlementPayment:
         self.sheet[f'AB{_start_row}'] = ''
         self.sheet[f'AC{_start_row}'] = f'{worker.name} {worker.ident_IPN}'
 
-        self.sheet.row_dimensions[_start_row].height = 36
+        self.sheet.row_dimensions[_start_row].height = 46
 
         def replace_n(string: str) -> str:
             return string.replace('\n', '').replace('\t', '') #.replace(' ', '')
 
-        if '.' in worker.name:
+        name = worker.name.replace(' - ', '-')
+
+        if '.' in name:
             self.sheet[
-                f'AC{_start_row}'] = f'{replace_n(worker.name)}\n{replace_n(worker.ident_IPN)}'
+                f'AC{_start_row}'] = f'{replace_n(name)}\n{replace_n(worker.ident_IPN)}'
         else:
             try:
-                self.sheet[f'AC{_start_row}'] = f'{worker.name.split(" ")[0]}\n{worker.name.split(" ")[1]} {replace_n(worker.name.split(" ")[2])} {replace_n(worker.ident_IPN)}'
+                self.sheet[f'AC{_start_row}'] = f'{name.split(" ")[0]}\n{name.split(" ")[1]} {replace_n(name.split(" ")[2])} {replace_n(worker.ident_IPN)}'
             except IndexError:
                 self.sheet[
-                    f'AC{_start_row}'] = f'{replace_n(worker.name)}\n{replace_n(worker.ident_IPN)}'
+                    f'AC{_start_row}'] = f'{replace_n(name)}\n{replace_n(worker.ident_IPN)}'
 
         return True
 
@@ -250,8 +253,10 @@ class SettlementPayment:
 
         self.sheet['C8'] = f'Головний бухгалтер   {self.Employer.name}'
 
+        settle_num = datetime.datetime.now().month-1
+        settle_num = settle_num if settle_num != 0 else 12
         self._merge('B10:O10', 'B10',
-                    f'Розрахунково-платіжна відомість № {datetime.datetime.now().month-1} за {self._billing_period()} р.')
+                    f'Розрахунково-платіжна відомість № {settle_num} за {self._billing_period()} р.')
         top_left_cell = self.sheet['B10']
         top_left_cell.font = Font(bold=True)
 
@@ -260,10 +265,10 @@ class SettlementPayment:
         self._merge('X12:Z12', 'X12', 'Сума, грн.')
 
         self._merge('M13:O13', 'M13', 'Допомога за')
-        self.sheet['R14'] = 'Податок'
-        self.sheet['R15'] = 'на'
-        self.sheet['R16'] = 'доходи'
-        self.sheet['R17'] = 'фіз. осіб'
+        self.sheet['R13'] = 'Податок\nна\nдоходи\nфіз.осіб'
+        self.sheet['R15'] = ''
+        self.sheet['R16'] = ''
+        self.sheet['R17'] = ''
 
         self.sheet['E14'] = 'Відпра-'
         self._merge('F14:J14', 'F14', 'Доплат та надбавок')
@@ -309,7 +314,7 @@ class SettlementPayment:
         self.sheet['J16'] = 'Індек-'
         self.sheet['K16'] = 'Премія'
         self.sheet['P16'] = 'Разом,'
-        self.sheet['R16'] = 'аванса'
+        self.sheet['Q16'] = 'аванса'
         self.sheet['S16'] = 'ний'
         self.sheet['T16'] = 'вий'
         self.sheet['U16'] = 'утри-'
@@ -511,7 +516,7 @@ class SettlementPayment:
             for cell in row:
                 cell.border = left_right_border
 
-        for row in self.sheet.iter_rows(min_row=13, max_row=19, min_col=15, max_col=16):
+        for row in self.sheet.iter_rows(min_row=13, max_row=19, min_col=16, max_col=17):
             for cell in row:
                 cell.border = left_right_border
 
@@ -519,7 +524,7 @@ class SettlementPayment:
             for cell in row:
                 cell.border = left_right_border
 
-        for row in self.sheet.iter_rows(min_row=13, max_row=19, min_col=17, max_col=17):
+        for row in self.sheet.iter_rows(min_row=13, max_row=19, min_col=18, max_col=18):
             for cell in row:
                 cell.border = border
 

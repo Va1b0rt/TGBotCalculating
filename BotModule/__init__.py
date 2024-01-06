@@ -32,7 +32,8 @@ commands = ['/start',
             '/extract_test',
             '/bok_prro',
             '/get_empty_book',
-            '/menu']
+            '/menu',
+            '/test_command']
 
 
 from . import StartCommand

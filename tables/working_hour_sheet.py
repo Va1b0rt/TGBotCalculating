@@ -2,6 +2,8 @@ import io
 import datetime
 
 import calendar
+
+from dateutil.relativedelta import relativedelta
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.styles import Alignment, Font
@@ -21,10 +23,10 @@ class AppearanceOTWHSheet:
     def __init__(self, employer: Employer):
         self.Employer: Employer = employer
         self.creation_date: datetime = datetime.datetime.now()
-        self.start_writing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month, 1)
-        self.start_billing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month - 1, 1)
+        self.start_writing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month, 1) - relativedelta(months=1)
+        self.start_billing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month, 1) - relativedelta(months=1)
         self.end_billing_period: datetime = self._get_last_day_of_month(self.creation_date.year,
-                                                                        self.creation_date.month)
+                                                                        self.creation_date.month) - relativedelta(months=1)
 
         self.workbook: Workbook = Workbook()
         self.sheet: Worksheet = Worksheet('')
@@ -53,8 +55,8 @@ class AppearanceOTWHSheet:
 
     @staticmethod
     def _get_last_day_of_month(year, month):
-        num_days = calendar.monthrange(year, month - 1)[1]
-        return datetime.date(year, month - 1, num_days)
+        num_days = calendar.monthrange(year, month)[1]
+        return datetime.date(year, month, num_days)
 
     @staticmethod
     def _get_days_with_eights(year: int, month: int, working_hours,
@@ -229,7 +231,7 @@ class AppearanceOTWHSheet:
             self._merge(f'X{last_row}:X{last_row + 1}', f'X{last_row}', f"{self._sum_hours(days)}")
 
             self.last_row["hours"] += self._sum_hours(days)
-            self._merge(f'AP{last_row}:AP{last_row + 1}', f'AP{last_row}', worker.salary_real)
+            self._merge(f'AP{last_row}:AP{last_row + 1}', f'AP{last_row}', worker.salary)
         except TypeError:
             raise NoWorkers()
         except ValueError:
