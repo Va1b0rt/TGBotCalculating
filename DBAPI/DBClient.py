@@ -317,7 +317,7 @@ class DBClient:
             if len(fourDFs) == 0:
                 raise NotExistsFourDF
 
-            result += f'{MONTHS[fourDFs[0].Date.month]}\n\n'
+            result += f'{MONTHS[fourDFs[0].Date.month-1]}\n\n'
             for fourDF in fourDFs:
                 result += f'ЕГРПОУ: {fourDF.EntrepreneurID} СУММА: {fourDF.Amount} ' \
                           f'НАИМЕНОВАНИЕ: {fourDF.EntrepreneurName}\n'

@@ -265,7 +265,8 @@ class SettlementPayment:
         self._merge('X12:Z12', 'X12', 'Сума, грн.')
 
         self._merge('M13:O13', 'M13', 'Допомога за')
-        self.sheet['R13'] = 'Податок\nна\nдоходи\nфіз.осіб'
+        self.sheet['R13'] = 'Податок на доходи фіз.осіб'
+        self.sheet['R13'].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
         self.sheet['R15'] = ''
         self.sheet['R16'] = ''
         self.sheet['R17'] = ''
@@ -369,6 +370,8 @@ class SettlementPayment:
             cell = self.sheet.cell(row=20, column=column)
             cell.value = column - start_column + 1
             cell.alignment = Alignment(horizontal='center', vertical='center')
+
+        self.sheet['R13'].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
         last_row = 21
 

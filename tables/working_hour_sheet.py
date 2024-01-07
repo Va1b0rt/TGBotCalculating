@@ -183,11 +183,12 @@ class AppearanceOTWHSheet:
         try:
             days = self._get_days_with_eights(self.start_billing_period.year, self.start_billing_period.month,
                                               worker.working_hours, employment_date,
-                                              dismissal_date)
+                                              dismissal_date + datetime.timedelta(days=1))
             work_days = int(sum(AppearanceOTWHSheet._get_days_with_eights(self.start_billing_period.year,
                                                                           self.start_billing_period.month,
                                                                           worker.working_hours, employment_date,
-                                                                          dismissal_date, not_x=True)) / int(
+                                                                          dismissal_date + datetime.timedelta(days=1),
+                                                                          not_x=True)) / int(
                 worker.working_hours))
         except ValueError:
             raise WorkerNotHaveWorkHours(worker)
@@ -200,14 +201,15 @@ class AppearanceOTWHSheet:
         self._merge(f'B{last_row}:B{last_row + 1}', f'B{last_row}', f'{self.worker_counter}')
         self._merge(f'C{last_row}:C{last_row + 1}', f'C{last_row}', worker.sex)
 
-        if '.' in worker.name:
-            self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}', worker.name)
+        name = worker.name.replace(' - ', '-')
+        if '.' in name:
+            self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}', name)
         else:
             try:
                 self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}',
-                                      f'{worker.name.split(" ")[0]}\n{worker.name.split(" ")[1]} {worker.name.split(" ")[2]}')
+                                      f'{name.split(" ")[0]}\n{name.split(" ")[1]} {name.split(" ")[2]}')
             except IndexError:
-                self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}', worker.name)
+                self._merge_wrap_text(f'D{last_row}:F{last_row + 1}', f'D{last_row}', name)
 
         self.sheet[f'G{last_row}'] = days[0]
         self.sheet[f'H{last_row}'] = days[1]
@@ -340,7 +342,7 @@ class AppearanceOTWHSheet:
         self.sheet['B8'].font = Font(name='Arial', bold=False, size=10)
 
         self._merge('G8:U8', 'G8', self.Employer.ident_EDRPOU)
-        self._merge('AJ8:AK9', 'AJ8', self.start_writing_period.strftime('%d.%m.%Y'))
+        self._merge('AJ8:AK9', 'AJ8', (self.start_writing_period + relativedelta(months=1)).strftime('%d.%m.%Y'))
         self._merge('AL8:AM8', 'AL8', 'з')
         self._merge('AN8:AO8', 'AN8', 'по')
 

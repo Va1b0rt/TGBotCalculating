@@ -1,4 +1,8 @@
+import datetime
+from urllib.parse import quote
+
 from aiogram.types import InputMediaDocument, InputFile, Message, ParseMode
+from dateutil.relativedelta import relativedelta
 
 from BotModule import bot, dp
 from BotModule.States import StatesMenu
@@ -10,12 +14,13 @@ from tables.working_hour_sheet import AppearanceOTWHSheet
 
 async def send_document_group(chat_id, documents, title: str):
     media = []
+    actual_month = (datetime.datetime.now() - relativedelta(months=1)).month
     for num, document_data in enumerate(documents):
         message = ''
-        file_name = f'Табель 7 {title}.xlsx'
+        file_name = quote(f'Табель {actual_month} {title}.xlsx'.replace(' ', '_'))
         if num == 0:
             message = f'{title}'
-            file_name = f'Расчётно-платёжная {title}.xlsx'
+            file_name = quote(f'Расчётно-платёжная {title}.xlsx'.replace(' ', '_'))
 
         media.append(InputMediaDocument(media=InputFile(document_data, filename=file_name),
                                         caption=message))
