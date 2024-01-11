@@ -55,3 +55,9 @@ class FourDF(Model):
     Amount = FloatField(verbose_name="Сумма транзакции")
     EntrepreneurID = BigIntegerField(verbose_name='Entrepreneur_ID')
     EntrepreneurName = CharField(max_length=255, verbose_name="Имя того кому сделал перевод")
+
+
+class User(Model):
+    User_ID = BigIntegerField(primary_key=True, unique=True, verbose_name='Telegram ID')
+    isAdmin = BooleanField(verbose_name='Is Admin')
+    LastLogged = CharField(max_length=40, verbose_name='Время последнего входа')

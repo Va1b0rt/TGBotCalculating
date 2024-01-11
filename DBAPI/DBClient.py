@@ -8,8 +8,8 @@ from peewee import MySQLDatabase, fn
 
 from Constants import MONTHS
 from DBAPI import logger
-from DBAPI.DBExceptions import NotExistsFourDF
-from DBAPI.Models import Persons, CurrencyRate, Transaction, FourDF
+from DBAPI.DBExceptions import NotExistsFourDF, UserWasExists
+from DBAPI.Models import Persons, CurrencyRate, Transaction, FourDF, User
 from Exceptions import NotExistsPerson
 from config import db_host, db_user, db_passwd, database, db_port
 from utils.Rates import get_rate_in_date
@@ -40,12 +40,14 @@ class DBClient:
         CurrencyRate._meta.database = DBClient.__database
         Transaction._meta.database = DBClient.__database
         FourDF._meta.database = DBClient.__database
+        User._meta.database = DBClient.__database
 
         try:
             Persons.create_table()
             CurrencyRate.create_table()
             Transaction.create_table()
             FourDF.create_table()
+            User.create_table()
         except peewee.OperationalError as err:
             logger.critical(err)
             sys.exit()
@@ -54,6 +56,7 @@ class DBClient:
         self.__rates = CurrencyRate
         self.__transactions = Transaction
         self.__fourDF = FourDF
+        self.__users = User
 
     @logger.catch
     def if_person_exists(self, person_id: int) -> bool:
@@ -342,3 +345,48 @@ class DBClient:
         except Exception as ex:
             logger.exception(ex)
             raise Exception(f"Во время удаления 4ДФ для пользователя '{holder_id}' произошла ошибка")
+
+# USERS
+
+    def add_user(self, user_id: int, is_admin: bool):
+        try:
+            if self.if_user_exist(user_id):
+                raise UserWasExists()
+            self.__users.create(User_ID=user_id,
+                                Admin=is_admin)
+        except Exception as ex:
+            logger.exception(ex)
+            raise UserWasExists("Во время добавления 4ДФ произошла ошибка. Детали: \n"
+                                f"[ UserID: {user_id}\n"
+                                f"  isAdmin: {is_admin}\n"
+                                f"]")
+
+    def is_admin_reverse(self, user_id: int):
+        try:
+            user = self.__users.select().where(self.__users.User_ID == user_id)
+            user.isAdmin = not user.isAdmin
+            user.save()
+
+        except Exception as ex:
+            logger.exception(ex)
+
+    def user_change_logged_time(self, user_id: int):
+        try:
+            user = self.__users.select().where(self.__users.User_ID == user_id)
+            user.LastLogged = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            user.save()
+
+        except Exception as ex:
+            logger.exception(ex)
+
+    def user_delete(self, user_id: int):
+        try:
+            user = self.__users.select().where(self.__users.User_ID == user_id)
+            user.delete()
+
+        except Exception as ex:
+            logger.exception(ex)
+
+    def if_user_exist(self, user_id: id):
+        query = self.__users.select().where(self.__users.User_ID == user_id)
+        return query.exists()
