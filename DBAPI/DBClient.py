@@ -8,7 +8,7 @@ from peewee import MySQLDatabase, fn
 
 from Constants import MONTHS
 from DBAPI import logger
-from DBAPI.DBExceptions import NotExistsFourDF, UserWasExists
+from DBAPI.DBExceptions import NotExistsFourDF, UserWasExists, UserNotExists
 from DBAPI.Models import Persons, CurrencyRate, Transaction, FourDF, User
 from Exceptions import NotExistsPerson
 from config import db_host, db_user, db_passwd, database, db_port
@@ -360,6 +360,16 @@ class DBClient:
                                 f"[ UserID: {user_id}\n"
                                 f"  isAdmin: {is_admin}\n"
                                 f"]")
+
+    def get_user(self, user_id) -> User:
+        if not self.if_user_exist(user_id):
+            raise UserNotExists
+        try:
+            return self.__users.select().where(self.__users.User_ID == user_id)
+
+        except Exception as ex:
+            logger.exception(ex)
+            raise Exception('Возникла непредвиденная ошибка')
 
     def is_admin_reverse(self, user_id: int):
         try:

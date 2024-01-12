@@ -6,3 +6,8 @@ class NotExistsFourDF(Exception):
 class UserWasExists(Exception):
     def __str__(self):
         return "Указанный пользователь уже существует"
+
+
+class UserNotExists(Exception):
+    def __str__(self):
+        return "Указанный пользователь не существует"
