@@ -25,3 +25,11 @@ class EntrepreneursMenu(StatesGroup):
     entrepreneur_menu = State()
     extracts_menu = State()
     extract_detail = State()
+
+
+class AdminMenu(StatesGroup):
+    main = State()
+    users = State()
+    user_details = State()
+    check_name = State()
+    add_new_user = State()

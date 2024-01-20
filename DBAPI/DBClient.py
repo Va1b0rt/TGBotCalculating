@@ -348,16 +348,19 @@ class DBClient:
 
 # USERS
 
-    def add_user(self, user_id: int, is_admin: bool):
+    def add_user(self, user_id: int, username: str, is_admin: bool, addedBy=None):
         try:
             if self.if_user_exist(user_id):
                 raise UserWasExists()
             self.__users.create(User_ID=user_id,
-                                Admin=is_admin)
+                                Username=username,
+                                Admin=is_admin,
+                                addedByUserID=addedBy)
         except Exception as ex:
             logger.exception(ex)
             raise UserWasExists("Во время добавления 4ДФ произошла ошибка. Детали: \n"
                                 f"[ UserID: {user_id}\n"
+                                f"  Username: {username}"
                                 f"  isAdmin: {is_admin}\n"
                                 f"]")
 
@@ -365,24 +368,44 @@ class DBClient:
         if not self.if_user_exist(user_id):
             raise UserNotExists
         try:
-            return self.__users.select().where(self.__users.User_ID == user_id)
+            return self.__users.get(self.__users.User_ID == user_id)
 
         except Exception as ex:
             logger.exception(ex)
-            raise Exception('Возникла непредвиденная ошибка')
+            raise UserNotExists('Возникла непредвиденная ошибка')
+
+    def get_users(self) -> tuple[User]:
+        try:
+            return self.__users.select().tuples()
+        except Exception as ex:
+            logger.exception(ex)
+            raise ex
+
+    def change_name(self, user_id, name):
+        try:
+            user = self.__users.get(self.__users.User_ID == user_id)
+            user.Name = name
+            user.save()
+
+        except Exception as ex:
+            logger.exception(ex)
+            raise ex
 
     def is_admin_reverse(self, user_id: int):
         try:
-            user = self.__users.select().where(self.__users.User_ID == user_id)
+            user = self.__users.get(self.__users.User_ID == user_id)
             user.isAdmin = not user.isAdmin
             user.save()
 
         except Exception as ex:
             logger.exception(ex)
 
-    def user_change_logged_time(self, user_id: int):
+    def set_logged_time(self, user_id: int, username: str):
         try:
-            user = self.__users.select().where(self.__users.User_ID == user_id)
+            if not self.if_user_exist(user_id):
+                self.add_user(user_id, username, False)
+
+            user = self.__users.get(self.__users.User_ID == user_id)
             user.LastLogged = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
             user.save()
 
@@ -391,7 +414,7 @@ class DBClient:
 
     def user_delete(self, user_id: int):
         try:
-            user = self.__users.select().where(self.__users.User_ID == user_id)
+            user = self.__users.get(self.__users.User_ID == user_id)
             user.delete()
 
         except Exception as ex:

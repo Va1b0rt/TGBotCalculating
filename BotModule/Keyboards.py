@@ -111,3 +111,33 @@ def extract_details_keyboard(extract_name: str, holder_id: int) -> InlineKeyboar
     return InlineKeyboardMarkup().add(*buttons)
 
 # END ENTREPRENEURS MENU
+
+
+# ADMIN MENU
+def get_menu() -> InlineKeyboardMarkup:
+    buttons = [
+        InlineKeyboardButton('Пользователи', callback_data=f'userlist'),
+        InlineKeyboardButton('Добавить', callback_data=f'addUser')
+    ]
+
+    return InlineKeyboardMarkup().add(*buttons)
+
+
+def get_users(userList) -> InlineKeyboardMarkup:
+    buttons = []
+
+    for user in userList:
+        buttons.append(InlineKeyboardButton(f'{user[1]}({user[0]})', callback_data=f'user_{user[0]}'))
+
+    return InlineKeyboardMarkup().add(*buttons)
+
+
+def user_detail_keyboard(user) -> InlineKeyboardMarkup:
+    buttons = [InlineKeyboardButton('Изменить имя', callback_data=f'change_name')]
+    button_admin_text = "Дать права" if not user.isAdmin else "Лишить прав"
+    if not user.topAdmin:
+        buttons.append(InlineKeyboardButton(button_admin_text, callback_data=f'change_admin'))
+    buttons.append(InlineKeyboardButton("Назад", callback_data=f'backTo_userList'))
+
+    return InlineKeyboardMarkup().add(*buttons)
+# END ADMIN MENU

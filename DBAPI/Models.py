@@ -2,6 +2,7 @@ import datetime
 
 from peewee import (Model, BooleanField, BigIntegerField, DateField, FloatField,
                     TextField, CharField)
+from playhouse.signals import pre_save
 
 
 class Persons(Model):
@@ -59,5 +60,18 @@ class FourDF(Model):
 
 class User(Model):
     User_ID = BigIntegerField(primary_key=True, unique=True, verbose_name='Telegram ID')
+    Username = CharField(max_length=255, verbose_name='Юзернейм в телеграм')
+    Name = CharField(max_length=255, verbose_name='Имя в боте')
     isAdmin = BooleanField(verbose_name='Is Admin')
     LastLogged = CharField(max_length=40, verbose_name='Время последнего входа')
+    addedByUserID = BigIntegerField(verbose_name='Telegram ID того кто добавил запись', null=True)
+    topAdmin = BooleanField(verbose_name='Is TopAdmin')
+
+
+def copy_username_to_name(sender, instance, created):
+    if created:
+        instance.Name = instance.Username
+
+
+# Подключаем сигнал к модели
+pre_save.connect(copy_username_to_name, sender=User)
