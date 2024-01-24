@@ -1,6 +1,5 @@
 import asyncio
 import atexit
-import inspect
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.files import JSONStorage
@@ -39,7 +38,8 @@ commands = ['/start',
             '/get_empty_book',
             '/menu',
             '/test_command',
-            '/AdminMenu']
+            '/AdminMenu',
+            '/SalaryTable']
 
 
 class LogInteractionTimeMiddleware(BaseMiddleware):
@@ -110,5 +110,6 @@ from . import EmptyBookCommand
 from . import MenuCommand
 from . import TestCommand
 from . import AdminMenuCommand
+from . import SalaryTableCommand
 
 

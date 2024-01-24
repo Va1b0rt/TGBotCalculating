@@ -213,7 +213,7 @@ class CSVExtractor:
         if not column_date:
             raise NoColumn('"Дата"')
         for num, date_cell in enumerate(column_date):
-            cell = date_cell.replace('"', '').replace('\ufeff', '').replace('/', '.')
+            cell = date_cell.replace('"', '').replace('\ufeff', '').replace('/', '.').replace('-', '.')
             #parsed_date = parser.parse(cell)
             #cell = parsed_date.strftime('%d.%m.%Y')
             column_date[num] = cell

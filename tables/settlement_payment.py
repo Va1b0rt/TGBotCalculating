@@ -1,36 +1,27 @@
 import calendar
 import datetime
-import io
 
 from dateutil.relativedelta import relativedelta
-from openpyxl import Workbook
 from openpyxl.styles.borders import BORDER_MEDIUM
-from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.styles import Alignment, Font
 from openpyxl.styles import Border, Side
 
 from Exceptions import WorkerNotHaveWorkHours
-from logger import Logger
 from tables.Models import Employer, Worker
 from XLAssembler import months_names
+from tables.Table import Table
 from .working_hour_sheet import AppearanceOTWHSheet
 
-cls_logger = Logger()
-logger = cls_logger.get_logger
 
-
-class SettlementPayment:
+class SettlementPayment(Table):
     def __init__(self, employer: Employer):
+        super().__init__(employer)
 
-        self.Employer: Employer = employer
         self.creation_date: datetime = datetime.datetime.now()
         self.start_billing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month, 1) - relativedelta(months=1)
         self.end_billing_period: datetime = AppearanceOTWHSheet._get_last_day_of_month(self.creation_date.year,
                                                                                        self.creation_date.month) - relativedelta(months=1)
         self.worker_counter = 0
-
-        self.workbook: Workbook = Workbook()
-        self.sheet: Worksheet = Worksheet('')
 
         self.last_row = {"days": 0,
                          "F": 0.0,
@@ -45,15 +36,6 @@ class SettlementPayment:
                          }
 
         self.__assemble_workbook()
-
-    def _merge(self, cells, cell, text, font=None):
-
-        self.sheet.merge_cells(cells)
-        top_left_cell = self.sheet[cell]
-        top_left_cell.value = text
-        top_left_cell.alignment = Alignment(horizontal='center', vertical='center')
-        if font:
-            top_left_cell.font = font
 
     def _billing_period(self, get_int: bool = False) -> str:
         def get_actual_month(_month: int) -> int:
@@ -504,8 +486,8 @@ class SettlementPayment:
         self.sheet[f'D{last_row-1}'].border = bottom_border
         self.sheet[f'E{last_row-1}'].border = bottom_border
         self.sheet[f'F{last_row-1}'].border = bottom_border
-        self.sheet[f'G{last_row - 1}'].border = bottom_border
-        self.sheet[f'J{last_row - 1}'].border = bottom_border
+        self.sheet[f'G{last_row-1}'].border = bottom_border
+        self.sheet[f'J{last_row-1}'].border = bottom_border
         self.sheet[f'K{last_row-1}'].border = bottom_border
         self.sheet[f'M{last_row-1}'].border = bottom_border
         self.sheet[f'N{last_row-1}'].border = bottom_border
@@ -559,19 +541,8 @@ class SettlementPayment:
             for cell in row:
                 cell.border = border
 
-    def get_bytes(self) -> io.BytesIO:
-        output = io.BytesIO()
-        self.workbook.save(output)
-        output.seek(0)
-        return output
-
-    def save(self):
-        self.workbook.save("example.xlsx")
-
 
 if __name__ == '__main__':
-
-
     worker1 = Worker(
         sex="М",
         name="John Doe",

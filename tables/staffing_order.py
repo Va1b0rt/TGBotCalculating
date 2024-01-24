@@ -3,12 +3,8 @@ import io
 from docx import Document
 from docx.shared import RGBColor
 
-from logger import Logger
 from tables.Models import Employer
 from tables.pdf_blank import Blank_PDF
-
-cls_logger = Logger()
-logger = cls_logger.get_logger
 
 
 class StaffingOrder(Blank_PDF):

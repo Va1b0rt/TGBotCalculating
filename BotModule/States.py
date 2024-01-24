@@ -33,3 +33,7 @@ class AdminMenu(StatesGroup):
     user_details = State()
     check_name = State()
     add_new_user = State()
+
+
+class SalaryTableStates(StatesGroup):
+    start = State()

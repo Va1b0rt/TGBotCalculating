@@ -5,6 +5,7 @@ from aiogram.types import InputMediaDocument, InputFile, Message, ParseMode
 from dateutil.relativedelta import relativedelta
 
 from BotModule import bot, dp
+from BotModule.SalaryTableCommand import generate_salary_table_command
 from BotModule.States import StatesMenu
 from Exceptions import NoWorkers, WorkerNotHaveWorkHours
 from cloud_sheets import Employers
@@ -40,6 +41,7 @@ async def start_message_command(message: Message):
             await bot.send_message(message.chat.id, f'❌ <b>{employer.name}</b> не имеет сотрудников.',
                                    parse_mode=ParseMode.HTML)
             continue
+
         try:
             sp = SettlementPayment(employer)
             sp_doc = sp.get_bytes()
@@ -59,3 +61,5 @@ async def start_message_command(message: Message):
                                    f'К сожалению без указания этих данных я не смогу сгенерировать таблицы.\n'
                                    f'Заполните недостающие данные и попробуйте сгенерировать таблицы снова.',
                                    parse_mode=ParseMode.HTML)
+
+    await generate_salary_table_command(message)

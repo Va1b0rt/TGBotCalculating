@@ -10,11 +10,8 @@ from openpyxl.styles import Alignment, Font
 from openpyxl.styles import Border, Side
 
 from Exceptions import NoWorkers, WorkerNotHaveWorkHours
-from logger import Logger
+from tables import logger
 from tables.Models import Worker, Employer
-
-cls_logger = Logger()
-logger = cls_logger.get_logger
 
 
 class AppearanceOTWHSheet:
