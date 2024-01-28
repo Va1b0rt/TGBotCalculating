@@ -9,6 +9,7 @@ from BotModule.SalaryTableCommand import generate_salary_table_command
 from BotModule.States import StatesMenu
 from Exceptions import NoWorkers, WorkerNotHaveWorkHours
 from cloud_sheets import Employers
+from tables.Exceptions import NoSuitableEmployers
 from tables.settlement_payment import SettlementPayment
 from tables.working_hour_sheet import AppearanceOTWHSheet
 
@@ -50,6 +51,11 @@ async def start_message_command(message: Message):
             aowhs_doc = aowhs.get_bytes()
 
             await send_document_group(message.chat.id, [sp_doc, aowhs_doc], employer.name)
+        except NoSuitableEmployers as ex:
+            await bot.send_message(message.chat.id,
+                                   f'❌ <b>{ex.employer.name}</b> не имеет сотрудников, удовлетворяющих требованиям'
+                                   f' для создания таблиц.',
+                                   parse_mode=ParseMode.HTML)
         except NoWorkers:
             await bot.send_message(message.chat.id,
                                    f'❌ <b>{employer.name}</b> не имеет сотрудников, удовлетворяющих требованиям'
@@ -62,4 +68,4 @@ async def start_message_command(message: Message):
                                    f'Заполните недостающие данные и попробуйте сгенерировать таблицы снова.',
                                    parse_mode=ParseMode.HTML)
 
-    await generate_salary_table_command(message)
+    #await generate_salary_table_command(message)

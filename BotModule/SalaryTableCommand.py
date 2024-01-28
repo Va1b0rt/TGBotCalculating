@@ -4,6 +4,7 @@ from BotModule import dp, bot, logger
 from BotModule.States import SalaryTableStates
 from Exceptions import NoWorkers, WorkerNotHaveWorkHours
 from cloud_sheets import Employers
+from tables.Exceptions import NoSuitableEmployers
 from tables.salary_table import SalaryTable
 
 
@@ -22,8 +23,7 @@ async def send_media(chat_id: int, media: list[InputMediaDocument]):
         await bot.send_media_group(chat_id=chat_id, media=media)
 
 
-@logger.catch
-@dp.message_handler(commands=['SalaryTable'], state='*')
+@dp.message_handler(commands=['salarytable'], state='*')
 async def generate_salary_table_command(message: Message):
     await SalaryTableStates.start.set()
 
@@ -42,7 +42,11 @@ async def generate_salary_table_command(message: Message):
             media.append(InputMediaDocument(media=InputFile(table.file,
                                                             filename=f'Аванс_{employer.name}.xlsx'.replace(" ", "_")),
                                             caption=''))
-
+        except NoSuitableEmployers as ex:
+            await bot.send_message(message.chat.id,
+                                   f'❌ <b>{ex.employer.name}</b> не имеет сотрудников, удовлетворяющих требованиям'
+                                   f' для создания таблиц.',
+                                   parse_mode=ParseMode.HTML)
         except NoWorkers:
             await bot.send_message(message.chat.id,
                                    f'❌ <b>{employer.name}</b> не имеет сотрудников, удовлетворяющих требованиям'

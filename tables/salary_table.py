@@ -5,6 +5,7 @@ import pandas as pd
 from openpyxl.styles import Alignment, Border, Side
 
 from Constants import MONTHS1
+from tables.Exceptions import NoSuitableEmployers
 from tables.Models import Employer, Worker
 from tables.Table import Table
 
@@ -17,15 +18,40 @@ class PartParameters(TypedDict):
     received: float
 
 
+class Tax(TypedDict):
+    esv: float
+    pdfo: float
+    military_tax: float
+
+
 class SalaryTable(Table):
     def __init__(self, employer: Employer):
         super().__init__(employer)
-        #self.dates_1_15, self.dates_16_1 = self.get_month_data()
+        # self.dates_1_15, self.dates_16_1 = self.get_month_data()
+
         self.together_parameters = PartParameters(salary=0.0,
                                                   esv=0.0,
                                                   pdfo=0.0,
                                                   military_tax=0.0,
                                                   received=0.0)
+        self.tax = Tax(esv=0.0,
+                       pdfo=0.0,
+                       military_tax=0.0)
+
+        self.working_period = []
+        start_day = datetime.now().replace(day=1)
+        self.working_period.append(start_day)
+
+        end_day = (start_day + timedelta(days=35)).replace(day=1) - timedelta(days=1)
+
+        self.working_period.append(end_day)
+
+        self.days_per_period = self.count_working_days(self.working_period[0], self.working_period[1])
+
+        self.salary_per_day: float = 0.0
+
+        self.full_salary_workers = []
+        self.half_salary_workers = []
 
         self.__assemble_workbook()
 
@@ -111,7 +137,7 @@ class SalaryTable(Table):
         military_tax = round(salary * 0.015, 2)
         self.together_parameters['military_tax'] += military_tax
 
-        received = round(salary - esv - pdfo - military_tax, 2)
+        received = round(salary - pdfo - military_tax, 2)
         self.together_parameters['received'] += received
 
         self.sheet[f'A{start_row}'] = payment_date
@@ -168,7 +194,7 @@ class SalaryTable(Table):
         military_tax = round(salary * 0.015, 2)
         self.together_parameters['military_tax'] += military_tax
 
-        received = round(salary - esv - pdfo - military_tax, 2)
+        received = round(salary - pdfo - military_tax, 2)
         self.together_parameters['received'] += received
 
         self.sheet[f'A{start_row}'] = payment_date
@@ -193,6 +219,20 @@ class SalaryTable(Table):
         self.sheet[f'J{start_row}'] = f'{round(self.together_parameters["military_tax"], 2)}'
         self.sheet[f'K{start_row}'] = f'{round(self.together_parameters["received"], 2)}'
 
+    def _salary_header(self, last_row, worker):
+        self.sheet[f'E{last_row}'] = f'{self.days_per_period} роб. днів'
+
+        salary = float(worker.salary_real)
+        self.salary_per_day = round(salary/self.days_per_period, 2)
+        esv = salary * 0.22
+        pdfo = salary * 0.18
+        military_tax = salary * 0.015
+        self.sheet[f'G{last_row}'] = f'{salary}'
+        self.sheet[f'H{last_row}'] = f'{esv}'
+        self.sheet[f'I{last_row}'] = f'{pdfo}'
+        self.sheet[f'J{last_row}'] = f'{military_tax}'
+        self.sheet[f'K{last_row}'] = f'{salary - pdfo - military_tax}'
+
     def __assemble_workbook(self):
         self.sheet = self.workbook.active
 
@@ -211,32 +251,86 @@ class SalaryTable(Table):
 
         last_row = 6
 
-        for num, worker in enumerate(self.Employer.workers):
-            if_feel = self._fill_first_part(worker, last_row)
-            if if_feel:
-                last_row += 1
+        for worker in self.Employer.workers:
+            if not worker.if_dismissal_later():
+                if worker.working_hours == '8':
+                    self.full_salary_workers.append(worker)
+                elif worker.working_hours == '4':
+                    self.half_salary_workers.append(worker)
 
-        if last_row > 5:
-            self._fil_together_row(last_row)
+        if len(self.full_salary_workers) + len(self.half_salary_workers) == 0:
+            raise NoSuitableEmployers(self.Employer)
+
+        if self.full_salary_workers:
+            self._salary_header(last_row, self.full_salary_workers[0])
+
             last_row += 1
 
-        self.together_parameters = PartParameters(salary=0.0,
-                                                  esv=0.0,
-                                                  pdfo=0.0,
-                                                  military_tax=0.0,
-                                                  received=0.0)
-        start_second_part_row = last_row
+            for num, worker in enumerate(self.full_salary_workers):
+                if_feel = self._fill_first_part(worker, last_row)
+                if if_feel:
+                    last_row += 1
 
-        for num, worker in enumerate(self.Employer.workers):
-            if_feel = self._fill_second_part(worker, last_row)
-            if if_feel:
+            if last_row > 7:
+                self._merge(f'F6:F{last_row-1}', 'F6', f'{self.salary_per_day}')
+                self._fil_together_row(last_row)
+
                 last_row += 1
 
-        #last_row += 1
+            self.together_parameters = PartParameters(salary=0.0,
+                                                      esv=0.0,
+                                                      pdfo=0.0,
+                                                      military_tax=0.0,
+                                                      received=0.0)
+            start_second_part_row = last_row
 
-        if start_second_part_row != last_row:
-            self._fil_together_row(last_row)
-            last_row += 2
+            for num, worker in enumerate(self.full_salary_workers):
+                if_feel = self._fill_second_part(worker, last_row)
+                if if_feel:
+                    last_row += 1
+
+            if start_second_part_row != last_row:
+                self._merge(f'F{start_second_part_row}:F{last_row - 1}',
+                            f'F{start_second_part_row}',
+                            f'{self.salary_per_day}')
+                self._fil_together_row(last_row)
+                last_row += 2
+
+        if self.half_salary_workers:
+            self._salary_header(last_row, self.half_salary_workers[0])
+
+            last_row += 1
+
+            for num, worker in enumerate(self.half_salary_workers):
+                if_feel = self._fill_first_part(worker, last_row)
+                if if_feel:
+                    last_row += 1
+
+            if last_row > 7:
+                self._merge(f'F6:F{last_row - 1}', 'F6', f'{self.salary_per_day}')
+                self._fil_together_row(last_row)
+
+                last_row += 1
+
+            self.together_parameters = PartParameters(salary=0.0,
+                                                      esv=0.0,
+                                                      pdfo=0.0,
+                                                      military_tax=0.0,
+                                                      received=0.0)
+            start_second_part_row = last_row
+
+            for num, worker in enumerate(self.half_salary_workers):
+                if_feel = self._fill_second_part(worker, last_row)
+                if if_feel:
+                    last_row += 1
+
+            if start_second_part_row != last_row:
+                self._merge(f'F{start_second_part_row}:F{last_row - 1}',
+                            f'F{start_second_part_row}',
+                            f'{self.salary_per_day}')
+                self._fil_together_row(last_row)
+                last_row += 2
+
 
         border = Border(
             left=Side(border_style='thin', color='000000'),
@@ -276,7 +370,7 @@ if __name__ == "__main__":
         sex="Male",
         name="John Doe",
         job_title="Software Engineer",
-        salary="5000",
+        salary="7100",
         working_hours="8",
         ident_IPN="1234567890",
         employment_date='01.11.2023',
@@ -288,7 +382,7 @@ if __name__ == "__main__":
         sex="Female",
         name="Jane Smith",
         job_title="Data Scientist",
-        salary="6000",
+        salary="7100",
         working_hours="8",
         ident_IPN="0987654321",
         employment_date='01.11.2023',

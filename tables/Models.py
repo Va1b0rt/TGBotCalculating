@@ -29,7 +29,7 @@ class Worker(BaseModel):
     def salary_real(self):
         try:
             salary = float(self.salary)
-            return round(salary * self.working_hours_coef)
+            return round(salary * self.working_hours_coef, 2)
         except (ValueError, TypeError) as ex:
             logger.warning(ex)
             return None
@@ -51,7 +51,7 @@ class Worker(BaseModel):
             working_days_per_month = self.count_working_days(first_day_of_month, last_day_of_month)
 
             # Узнаем сколько стоит рабочий день
-            salary_per_day = float(self.salary) / working_days_per_month
+            salary_per_day = (float(self.salary) / working_days_per_month) * int(self.working_hours) / 8
 
             return round(salary_per_day, 2)
 
@@ -67,7 +67,7 @@ class Worker(BaseModel):
             days_for_current_period = self.count_working_days(start_date, end_date)
             salary_for_current_period = salary_per_day * days_for_current_period
 
-            return round(salary_for_current_period)
+            return round(salary_for_current_period, 2)
 
         except Exception as ex:
             logger.warning(ex)
@@ -98,6 +98,18 @@ class Worker(BaseModel):
                 return True
 
         return False
+
+    def if_dismissal_later(self) -> bool:
+        today = datetime.date.today()
+        try:
+            dismissal_day = datetime.datetime.strptime(self.dismissal, '%d.%m.%Y').date()
+        except ValueError:
+            return False
+
+        if dismissal_day < today and dismissal_day.replace(day=1) <= (today-datetime.timedelta(days=30)).replace(day=1):
+            return True
+        else:
+            return False
 
 
 class Employer(BaseModel):
