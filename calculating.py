@@ -1167,6 +1167,31 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
             return date_column, cash_column, sum_product
         # elif "ID чека" in columns[0]:
 
+        elif "RegistrarNumFiscal" in columns[0]:
+            date_column = data_frame[columns[3]].values.tolist()
+
+            for row_num, row in enumerate(date_column):
+                if type(row) is str:
+                    if re.search(r'\d*-\d*-\d* \d*:\d*:\d*', row):
+                        year, month, day = row.split(' ')[0].split('-')
+                        date = f'{day}.{month}.{year}'
+                        date_column[row_num] = date
+                elif type(row) is int:
+                    real_timestamp = int(str(row)[:-9])
+                    row_datetime = datetime.fromtimestamp(real_timestamp)
+                    date = row_datetime.strftime('%d.%m.%Y')
+                    date_column[row_num] = date
+
+            cash_column = data_frame[columns[4]].values.tolist()
+
+            for row_num, row in enumerate(cash_column):
+                cash_column[row_num] = 1
+
+            sum_product = data_frame[columns[6]].values.tolist()
+
+            return date_column, cash_column, sum_product
+
+
     except (TypeError, IndexError):
         raise NotHaveTemplatePRRO()
 

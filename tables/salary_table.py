@@ -2,7 +2,7 @@ from datetime import timedelta, datetime
 from typing import TypedDict
 
 import pandas as pd
-from openpyxl.styles import Alignment, Border, Side
+from openpyxl.styles import Alignment, Border, Side, Font
 
 from Constants import MONTHS1
 from tables.Exceptions import NoSuitableEmployers
@@ -275,6 +275,11 @@ class SalaryTable(Table):
                 self._merge(f'F6:F{last_row-1}', 'F6', f'{self.salary_per_day}')
                 self._fil_together_row(last_row)
 
+                for cells in self.sheet.iter_cols(min_col=1, max_col=self.sheet.max_column,
+                                                  min_row=last_row, max_row=last_row):
+                    for cell in cells:
+                        cell.font = Font(bold=True)
+
                 last_row += 1
 
             self.together_parameters = PartParameters(salary=0.0,
@@ -294,6 +299,11 @@ class SalaryTable(Table):
                             f'F{start_second_part_row}',
                             f'{self.salary_per_day}')
                 self._fil_together_row(last_row)
+                for cells in self.sheet.iter_cols(min_col=1, max_col=self.sheet.max_column,
+                                                  min_row=last_row, max_row=last_row):
+                    for cell in cells:
+                        cell.font = Font(bold=True)
+
                 last_row += 2
 
         if self.half_salary_workers:
@@ -309,6 +319,10 @@ class SalaryTable(Table):
             if last_row > 7:
                 self._merge(f'F6:F{last_row - 1}', 'F6', f'{self.salary_per_day}')
                 self._fil_together_row(last_row)
+                for cells in self.sheet.iter_cols(min_col=1, max_col=self.sheet.max_column,
+                                                  min_row=last_row, max_row=last_row):
+                    for cell in cells:
+                        cell.font = Font(bold=True)
 
                 last_row += 1
 
@@ -329,6 +343,11 @@ class SalaryTable(Table):
                             f'F{start_second_part_row}',
                             f'{self.salary_per_day}')
                 self._fil_together_row(last_row)
+                for cells in self.sheet.iter_cols(min_col=1, max_col=self.sheet.max_column,
+                                                  min_row=last_row, max_row=last_row):
+                    for cell in cells:
+                        cell.font = Font(bold=True)
+
                 last_row += 2
 
 
