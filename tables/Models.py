@@ -73,6 +73,26 @@ class Worker(BaseModel):
             logger.warning(ex)
             return 0.0
 
+    def salary_for_period_full(self, start_date: datetime.datetime, end_date) -> float:
+        """
+        Получаем зп за период из расчёта полной ставки.
+        :param start_date:
+        :param end_date:
+        :return:
+        """
+        try:
+
+            days_for_current_period = self.count_working_days(start_date, end_date)
+            salary_per_day = float(self.salary) / days_for_current_period
+
+            salary_for_current_period = salary_per_day * days_for_current_period
+
+            return round(salary_for_current_period, 2)
+
+        except Exception as ex:
+            logger.warning(ex)
+            return 0.0
+
     @staticmethod
     def count_working_days(start_date, end_date) -> int:
         # Создаем диапазон дат с использованием библиотеки pandas
@@ -88,13 +108,13 @@ class Worker(BaseModel):
         today = datetime.date.today()
         first_day_of_this_month = today.replace(day=1)
         last_day_of_last_month = first_day_of_this_month - datetime.timedelta(days=1)
-        previous_month = last_day_of_last_month.month
+        first_day_of_last_month = last_day_of_last_month.replace(day=1)
 
-        if int(self.employment_date.split('.')[1]) > previous_month:
+        if datetime.datetime.strptime(self.employment_date, "%d.%m.%Y").date() > last_day_of_last_month:
             return True
 
         if self.dismissal != '':
-            if int(self.dismissal.split('.')[1]) < previous_month:
+            if datetime.datetime.strptime(self.dismissal, "%d.%m.%Y").date() < first_day_of_last_month:
                 return True
 
         return False

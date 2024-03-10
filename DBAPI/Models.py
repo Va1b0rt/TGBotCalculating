@@ -1,7 +1,7 @@
 import datetime
 
 from peewee import (Model, BooleanField, BigIntegerField, DateField, FloatField,
-                    TextField, CharField)
+                    TextField, CharField, AutoField, ForeignKeyField)
 from playhouse.signals import pre_save
 
 
@@ -66,6 +66,30 @@ class User(Model):
     LastLogged = CharField(max_length=40, verbose_name='Время последнего входа')
     addedByUserID = BigIntegerField(verbose_name='Telegram ID того кто добавил запись', null=True)
     topAdmin = BooleanField(verbose_name='Is TopAdmin')
+
+
+class Employer(Model):
+    id = AutoField(primary_key=True)
+    name = CharField()
+    ident_EDRPOU = CharField()
+    residence = CharField()
+    phone = CharField()
+
+
+class Worker(Model):
+    id = AutoField(primary_key=True)
+    sex = CharField()
+    name = CharField()
+    job_title = CharField()
+    salary = CharField()
+    working_hours = CharField()
+    ident_IPN = CharField()
+    employment_date = DateField()
+    birthday = DateField()
+    dismissal = DateField(null=True)
+
+    # Связь с моделью Employer. Один работодатель может иметь много работников.
+    employer = ForeignKeyField(Employer, backref='workers')
 
 
 def copy_username_to_name(sender, instance, created):

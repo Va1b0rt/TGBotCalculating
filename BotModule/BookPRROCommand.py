@@ -4,8 +4,8 @@ from aiogram.dispatcher import FSMContext
 from aiogram.types import Message, ContentType, ParseMode, CallbackQuery, InputFile
 
 from BotModule import logger, dp, bot, commands
-from BotModule.Common import get_message, find_entrepreneur, get_missing_months
-from BotModule.Keyboards import keyboard_handle_extracts, entrepreneurs_menu
+from BotModule.Common import get_message, find_entrepreneur, get_missing_months, get_message_prro
+from BotModule.Keyboards import keyboard_handle_extracts, entrepreneurs_menu, button_handle_prro, keyboard_handle_prro
 from BotModule.States import StatesMenu
 from Exceptions import NotHaveTemplate, UnknownEncoding, TemplateDoesNotFit, NotHaveTemplatePRRO
 from XLAssembler import TableAssembler
@@ -139,20 +139,52 @@ async def button_upload(call: CallbackQuery, state: FSMContext):
 
 @logger.catch
 @dp.message_handler(content_types=ContentType.DOCUMENT, state=StatesMenu.bok_prro_2)
-async def handle_extract(message: Message, state: FSMContext):
-    try:
-        prro = message.document
-        prro_mime = ''
-        if prro.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
-                              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
-            prro_mime = 'xlsx'
-        elif prro.mime_type == 'text/csv' or prro.file_name.endswith('.csv'):
-            prro_mime = 'csv'
+async def handle_prro(message: Message, state: FSMContext):
+    document = message.document
+    mime = ''
+
+    async with state.proxy() as data:
+        try:
+            if hasattr(message, 'md_text'):
+                data['title'] = message.md_text
+        except TypeError:
+            pass
+
+        if document.mime_type in ('application/vnd.ms-excel', 'application/x-msexcel',
+                                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'):
+            mime = 'xlsx'
+
+        elif document.mime_type == 'text/csv' or document.file_name.endswith('.csv'):
+            mime = 'csv'
         else:
             await message.answer('Прикреплённый файл РРО имеет не поддерживаемый тип.')
             logger.warning('Прикреплённый файл не является XLS-файлом')
 
-        await message.answer('Получен файл ПРРО. Обрабатываем...')
+        if 'prro' in data:
+            data['prro'].append({
+                'file_data': document.as_json(),
+                'mime': mime
+            })
+        else:
+            data['prro'] = [{
+                'file_data': document.as_json(),
+                'mime': mime
+            }]
+
+        await message.answer(f'Получен файл «ПРРО».\n'
+                             f'{get_message_prro(data)}',
+                             reply_markup=keyboard_handle_prro,
+                             parse_mode=ParseMode.HTML)
+
+
+@logger.catch
+@dp.callback_query_handler(lambda call: call.data == "button_handle_prro", state=StatesMenu.bok_prro_2)
+async def button_prro_upload(call: CallbackQuery, state: FSMContext):
+    await handle_extract(call.message, state)
+
+
+async def handle_extract(message: Message, state: FSMContext):
+    try:
         async with state.proxy() as data:
             extracts = data['extracts']
             extracts_files = []
@@ -169,16 +201,23 @@ async def handle_extract(message: Message, state: FSMContext):
                                        'extract_file_name': extract_file_name,
                                        'mime': extract['mime']})
 
-            prro_file_id = prro.file_id
-            prro_file_info = await bot.get_file(prro_file_id)
-            prro_file_path = prro_file_info.file_path
-            prro_file = await bot.download_file(prro_file_path)
+            prro_files = []
+
+            for prro in data['prro']:
+                mime = prro['mime']
+                prro = json.loads(prro['file_data'])
+                prro_file_id = prro['file_id']
+                prro_name = prro['file_name']
+                prro_file_info = await bot.get_file(prro_file_id)
+                prro_file_path = prro_file_info.file_path
+                prro_file = await bot.download_file(prro_file_path)
+
+                prro_files.append([prro_name, prro_file, mime])
 
             result, rows, timerange, lost_months = await get_timesheet_data(extracts_files, 'bok_prro',
                                                                             title=data['title'],
                                                                             holder_id=data['holder_id'],
-                                                                            prro_file=prro_file,
-                                                                            prro_mime=prro_mime)
+                                                                            prro_files=prro_files)
 
             data['title'] = result['title']
 

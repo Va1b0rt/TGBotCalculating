@@ -4,7 +4,7 @@ from aiogram.types import Message, CallbackQuery, ContentType, InputFile
 from BotModule import logger, dp, bot, commands
 from BotModule.States import StatesMenu
 from XLAssembler import TableAssembler
-from keyboards import month_keyboard
+from .Keyboards import month_keyboard
 
 
 @logger.catch

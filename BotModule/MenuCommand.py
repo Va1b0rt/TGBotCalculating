@@ -1,3 +1,4 @@
+import hashlib
 import io
 
 from aiogram.dispatcher import FSMContext
@@ -8,6 +9,9 @@ from BotModule.Keyboards import entrepreneurs_keyboard, extracts_keyboard, extra
 from BotModule.States import EntrepreneursMenu
 from DBAPI.DBClient import DBClient
 from DBAPI.DBExceptions import NotExistsFourDF
+from DBAPI.Models import Transaction as db_trans
+from calculating import get_timerange, process_transactions, counting_revenue, add_list_fop_sums
+from Models import Transaction
 
 
 @dp.message_handler(commands=['menu'], state='*')
@@ -74,6 +78,27 @@ async def changed_entrepreneur(call: CallbackQuery, state: FSMContext):
                                     call.message.chat.id, call.message.message_id)
 
 
+async def get_income(holder_id: int, title: str, extract_hash) -> float:
+    _transactions: list[db_trans] = DBClient().get_transactions(holder_id, extract_hash)
+
+    transactions: list[Transaction] = []
+
+    for tr in _transactions:
+        transactions.append(Transaction(Extract_name=tr.Extract_name,
+                                        Holder=title, Holder_id=tr.Holder_id,
+                                        Date=tr.Date, Amount=tr.Amount,
+                                        Purpose=tr.Purpose, Egrpou=f'{tr.EGRPOU}',
+                                        Type="extract", Name=tr.Name,
+                                        Hash=hashlib.sha256(f"{tr.Extract_name}{title}"
+                                                            f"{tr.Holder_id}{tr.Date}{tr.Amount}{tr.Purpose}"
+                                                            f"{tr.EGRPOU}{tr.Name}".encode()).hexdigest()))
+
+    timerange = await get_timerange(transactions)
+    timesheet_data, rows = process_transactions(int(holder_id))
+    timesheet_data = counting_revenue(timesheet_data)
+    return round(float(timesheet_data['months'][timerange[1].month - 1]), 2)
+
+
 @logger.catch
 @dp.callback_query_handler(lambda call: call.data.startswith('ex_'), state=EntrepreneursMenu.extracts_menu)
 async def changed_extract(call: CallbackQuery, state: FSMContext):
@@ -86,11 +111,16 @@ async def changed_extract(call: CallbackQuery, state: FSMContext):
             extract_name = DBClient().get_extract_name(data['extract_hash'], data['holder_id'])
             timerange = DBClient().get_extract_timerange(data['extract_hash'], data['holder_id'])
 
+            extract_type = "Выписка" if details["extract_type"] == 'extract' else "ПРРО"
+
+            income = await get_income(data['holder_id'], data["title"], data['extract_hash'])
             await EntrepreneursMenu.extract_detail.set()
             await bot.edit_message_text(f'Предприниматель: <b>{data["title"]}</b>\n'
+                                        f'Тип выписки: <b>{extract_type}</b>\n'
                                         f'Название выписки: <b>{extract_name}</b>\n'
                                         f'Количество транзакций: <b>{details["transactions_count"]}.шт</b>\n'
-                                        f'Период: <b>{timerange}</b>',
+                                        f'Период: <b>{timerange}</b>\n'
+                                        f'Доход: <b>{income}</b>',
                                         call.message.chat.id, call.message.message_id,
                                         reply_markup=extract_details_keyboard(data['extract_hash'], data['holder_id']),
                                         parse_mode=ParseMode.HTML)
@@ -145,15 +175,18 @@ async def del_extract(call: CallbackQuery, state: FSMContext):
 
     except Exception as ex:
         logger.exception(ex)
-        details = DBClient().extract_details(data['extract_name'], data['holder_id'])
+
+        extract_name = DBClient().get_extract_name(extract_hash, data['holder_id'])
+        details = DBClient().extract_details(extract_name, data['holder_id'])
         await bot.edit_message_text(f'Не удалось удалить: <b>{extract_name}</b>\n',
                                     f'Предприниматель: <b>{data["title"]}</b>\n'
-                                    f'Название выписки: <b>{data["extract_name"]}шт.</b>'
+                                    f'Название выписки: <b>{extract_name}шт.</b>'
                                     f'Количество транзакций: <b>{details["transactions_count"]}</b>'
                                     f'Период: <b>с по</b>',
                                     call.message.chat.id, call.message.message_id,
-                                    reply_markup=extract_details_keyboard(data['extract_name']),
+                                    reply_markup=extract_details_keyboard(extract_name, data['holder_id']),
                                     parse_mode=ParseMode.HTML)
+
 
 
 @logger.catch

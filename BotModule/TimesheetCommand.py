@@ -91,7 +91,7 @@ async def button_upload_timesheet(call: CallbackQuery, state: FSMContext):
         if "title" not in data:
 
             await bot.send_message(call.message.chat.id,
-                                   f'⚠ <b>Обратьите внимание, что вы не указали имя владельца выписки.</b> ⚠\n'
+                                   f'⚠ <b>Обратите внимание, что вы не указали имя владельца выписки.</b> ⚠\n'
                                    'Без указания этой информации мы не сможем правильно обработать выписки.\n'
                                    'Выберите из предложенного ниже списка нужного предпринимателя.'
                                    f'{get_message(data)}',
@@ -227,5 +227,17 @@ async def generate_timesheet(data, message):
                                f'Не нашёл подходящее значение названия для столбца {ex.column_name}\n'
                                'Скорее всего в таблице нет правильного значения.\n')
     except Exception as ex:
-        print(ex)
+        logger.exception(ex)
     await StatesMenu.main.set()
+
+
+@logger.catch
+@dp.callback_query_handler(lambda call: call.data.startswith("entrepreneurs_menu:"),
+                           state='*')
+async def button_entrepreneurs_menu(call: CallbackQuery):
+    entrepreneurs = Entrepreneurs()
+
+    remover = int(call.data.replace('entrepreneurs_menu:', ''))
+
+    await bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id,
+                                        reply_markup=entrepreneurs_menu(entrepreneurs, remover=remover))

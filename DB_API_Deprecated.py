@@ -8,6 +8,7 @@ from peewee import (MySQLDatabase, Model, BooleanField, BigIntegerField, DateFie
                     TextField, CharField, fn)
 
 from Exceptions import NotExistsPerson
+from WebAPI import Employer, Worker
 from config import db_host, db_user, db_passwd, database, db_port
 from logger import Logger
 from utils.Rates import get_rate_in_date
@@ -93,12 +94,16 @@ class DBClient:
         CurrencyRate._meta.database = DBClient.__database
         Transaction._meta.database = DBClient.__database
         FourDF._meta.database = DBClient.__database
+        Employer._meta.database = DBClient.__database
+        Worker._meta.database = DBClient.__database
 
         try:
             Persons.create_table()
             CurrencyRate.create_table()
             Transaction.create_table()
             FourDF.create_table()
+            Employer.create_table()
+            Worker.create_table()
         except peewee.OperationalError as err:
             logger.critical(err)
             sys.exit()
@@ -107,6 +112,8 @@ class DBClient:
         self.__rates = CurrencyRate
         self.__transactions = Transaction
         self.__fourDF = FourDF
+        self.__Employers = Employer
+        self.__Employers = Worker
 
     @logger.catch
     def if_person_exists(self, person_id: int) -> bool:

@@ -5,18 +5,18 @@ from pydantic import BaseModel, field_validator
 
 
 class Transaction(BaseModel):
-    extract_name: str
-    holder: str
-    holder_id: int
-    date: datetime
-    amount: float
-    purpose: str
-    egrpou: str
-    type: str
-    name: str
-    hash: str
+    Extract_name: str
+    Holder: str
+    Holder_id: int
+    Date: datetime
+    Amount: float
+    Purpose: str
+    Egrpou: str
+    Type: str
+    Name: str
+    Hash: str
 
-    @field_validator("date", mode='before')
+    @field_validator("Date", mode='before')
     def parse_date(cls, value):
         if isinstance(value, datetime):
             return value
@@ -28,7 +28,7 @@ class Transaction(BaseModel):
         else:
             raise ValueError("Неверный тип данных. Ожидалась строка или datetime объект.")
 
-    @field_validator("holder_id", mode='before')
+    @field_validator("Holder_id", mode='before')
     def parse_holder_id(cls, value):
         if isinstance(value, int):
             return value
@@ -40,7 +40,7 @@ class Transaction(BaseModel):
         else:
             raise ValueError('Неверный тип данных. Ожидалось целое число или строка.')
 
-    @field_validator("amount", mode='before')
+    @field_validator("Amount", mode='before')
     def parse_amount(cls, value):
         if isinstance(value, float):
             if pd.isna(value):
@@ -56,7 +56,7 @@ class Transaction(BaseModel):
         else:
             raise ValueError('Неверный тип данных. Ожидалось число или строка')
 
-    @field_validator("purpose", "egrpou", "name", mode='before')
+    @field_validator("Purpose", "Egrpou", "Name", mode='before')
     def parse_strings(cls, value):
         if isinstance(value, str):
             return value

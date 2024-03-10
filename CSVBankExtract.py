@@ -8,10 +8,11 @@ from dateutil import parser
 import cchardet
 import pandas as pd
 
-from DB_API import DBClient
+from DBAPI import DBClient
 from Exceptions import UnknownEncoding, NoDelimiter, NoColumn
 from cloud_sheets import Columns
 from logger import Logger
+from utils.LangMethods import is_ukrainian, latin_to_cyrillic
 
 cls_logger = Logger()
 logger = cls_logger.get_logger
@@ -334,9 +335,13 @@ class CSVExtractor:
         purpose = self._get_column_data('purpose')
         if not purpose:
             raise NoColumn('"Назначение платежа"')
+        for num, purp in enumerate(purpose):
+            if not pd.isna(purp):
+                if is_ukrainian(purp):
+                    purpose[num] = latin_to_cyrillic(purp)
         self.purpose_column = purpose
 
-    # END PURPOSE COLUMN
+    # END PURPOSE COLUMNА
 
     # EGRPOU COLUMN
     def _get_column_egrpou(self):

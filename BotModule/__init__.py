@@ -39,7 +39,7 @@ commands = ['/start',
             '/menu',
             '/test_command',
             '/AdminMenu',
-            '/SalaryTable']
+            '/salarytable']
 
 
 class LogInteractionTimeMiddleware(BaseMiddleware):

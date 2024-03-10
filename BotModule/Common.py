@@ -25,6 +25,27 @@ def get_message(state_data: dict) -> str:
     return message
 
 
+@logger.catch
+def get_message_prro(state_data: dict) -> str:
+    """
+
+    :param state_data: aiogram state data
+    :return: info message
+    """
+    extracts = ''
+
+    if len(state_data['prro']) > 0:
+        extracts = ''.join([f"<b>{index + 1}: ✅{json.loads(doc['file_data'])['file_name']}</b>\n" for index, doc in
+                            enumerate(state_data['prro'])])
+
+    message = (f'Внесённое число ПРРО: <b>{len(state_data["prro"])}</b>\n'
+               f'Имя владельца: <b>"{state_data["title"] if "title" in state_data else "⚠️НЕТ ИМЕНИ⚠️"}"</b>:\n'
+               f'Выписки: \n'
+               f'{extracts}')
+
+    return message
+
+
 def find_entrepreneur(name: str, entrepreneurs: dict[str, str]) -> Union[bool, str]:
     """
 

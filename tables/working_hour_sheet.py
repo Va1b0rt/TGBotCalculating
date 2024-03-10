@@ -22,8 +22,7 @@ class AppearanceOTWHSheet:
         self.creation_date: datetime = datetime.datetime.now()
         self.start_writing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month, 1) - relativedelta(months=1)
         self.start_billing_period: datetime = datetime.date(self.creation_date.year, self.creation_date.month, 1) - relativedelta(months=1)
-        self.end_billing_period: datetime = self._get_last_day_of_month(self.creation_date.year,
-                                                                        self.creation_date.month) - relativedelta(months=1)
+        self.end_billing_period: datetime = (self.start_billing_period + relativedelta(months=1)) - datetime.timedelta(days=1)
 
         self.workbook: Workbook = Workbook()
         self.sheet: Worksheet = Worksheet('')

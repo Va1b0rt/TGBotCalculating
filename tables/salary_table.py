@@ -128,7 +128,7 @@ class SalaryTable(Table):
         salary = worker.salary_for_period(start_date, end_date)
         self.together_parameters['salary'] += salary
 
-        esv = round(salary * 0.22, 2)
+        esv = round(worker.salary_for_period_full(start_date, end_date) * 0.22, 2)
         self.together_parameters['esv'] += esv
 
         pdfo = round(salary * 0.18, 2)
@@ -170,7 +170,7 @@ class SalaryTable(Table):
             return False
 
         # 5тое число следующего месяца
-        payment_date = f'Платимо {(today.replace(day=30) + timedelta(days=7)).replace(day=5).strftime("%d.%m.%Y")}'
+        payment_date = f'Платимо {(today.replace(day=28) + timedelta(days=7)).replace(day=5).strftime("%d.%m.%Y")}'
 
         name = worker.name
 
@@ -185,7 +185,7 @@ class SalaryTable(Table):
         salary = worker.salary_for_period(start_date, end_date)
         self.together_parameters['salary'] += salary
 
-        esv = round(salary * 0.22, 2)
+        esv = round(worker.salary_for_period_full(start_date, end_date) * 0.22, 2)
         self.together_parameters['esv'] += esv
 
         pdfo = round(salary * 0.18, 2)
@@ -224,7 +224,7 @@ class SalaryTable(Table):
 
         salary = float(worker.salary_real)
         self.salary_per_day = round(salary/self.days_per_period, 2)
-        esv = salary * 0.22
+        esv = float(worker.salary) * 0.22
         pdfo = salary * 0.18
         military_tax = salary * 0.015
         self.sheet[f'G{last_row}'] = f'{salary}'

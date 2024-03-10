@@ -1,11 +1,12 @@
 import hashlib
 import base64
+import math
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from DBAPI.DBClient import DBClient
 from DBAPI.DBExceptions import NotExistsFourDF
-from DB_API import Persons
+from DBAPI.Models import Persons
 from cloud_sheets import Entrepreneurs
 from utils.StringCompresser import shorten_name
 
@@ -14,7 +15,6 @@ button_extract = InlineKeyboardButton('Выписка', callback_data='button_ex
 
 keyboard_main = InlineKeyboardMarkup() \
     .row(button_timesheet_acquiring, button_extract)
-
 
 # TIMESHEET
 button_handle_extracts_timesheet = InlineKeyboardButton('Обработать', callback_data='button_handle_extracts_timesheet')
@@ -25,6 +25,10 @@ keyboard_handle_extracts_timesheet = InlineKeyboardMarkup() \
 button_handle_extracts = InlineKeyboardButton('Обработать', callback_data='button_handle_extracts')
 keyboard_handle_extracts = InlineKeyboardMarkup() \
     .row(button_handle_extracts)
+
+button_handle_prro = InlineKeyboardButton('Обработать', callback_data='button_handle_prro')
+keyboard_handle_prro = InlineKeyboardMarkup() \
+    .row(button_handle_prro)
 
 
 # EMPTY BOOK
@@ -47,19 +51,42 @@ months_buttons = []
 for month in months:
     months_buttons.append(InlineKeyboardButton(month, callback_data=f'month_{month:2}'))
 
-month_keyboard = InlineKeyboardMarkup()\
-    .row(months_buttons[0], months_buttons[1], months_buttons[2])\
-    .row(months_buttons[3], months_buttons[4], months_buttons[5])\
-    .row(months_buttons[6], months_buttons[7], months_buttons[8])\
+month_keyboard = InlineKeyboardMarkup() \
+    .row(months_buttons[0], months_buttons[1], months_buttons[2]) \
+    .row(months_buttons[3], months_buttons[4], months_buttons[5]) \
+    .row(months_buttons[6], months_buttons[7], months_buttons[8]) \
     .row(months_buttons[9], months_buttons[10], months_buttons[11])
 
 
-def entrepreneurs_menu(entrepreneurs: dict[str, str], name: str = '') -> InlineKeyboardMarkup:
+def entrepreneurs_menu(entrepreneurs: Entrepreneurs, name: str = '', remover: int = 0) -> InlineKeyboardMarkup:
+    if remover >= len(entrepreneurs): remover -= 9
 
     buttons = []
 
-    for name, fop_id in entrepreneurs.items():
-        buttons.append(InlineKeyboardButton(name, callback_data=f'fop_{name}_{fop_id}'))
+    for count, a in enumerate(range(remover, len(entrepreneurs))):
+
+        if count < 9:
+            names = entrepreneurs.keys
+            fop_ids = entrepreneurs.values
+            buttons.append(InlineKeyboardButton(names[a], callback_data=f'fop_{names[a]}_{fop_ids[a]}'))
+
+    if len(entrepreneurs) > 9 > remover:
+        buttons.append(InlineKeyboardButton(f"💎 1/{math.ceil(len(entrepreneurs) / 9) - 1} 💎"
+                                            , callback_data=f'...'))
+        buttons.append(InlineKeyboardButton("Далее 👉",
+                                            callback_data=f"entrepreneurs_menu:{remover + 9}"))
+
+    elif remover + 10 >= len(entrepreneurs):
+        buttons.append(InlineKeyboardButton("👈 Назад", callback_data=f"entrepreneurs_menu:{remover - 9}"))
+        buttons.append(InlineKeyboardButton(f"💎 {str(remover + 9)[:-1]}/{math.ceil(len(entrepreneurs) / 9)-1} 💎",
+                                            callback_data="..."))
+
+    else:
+        buttons.append(InlineKeyboardButton("👈 Назад", callback_data=f"entrepreneurs_menu:{remover - 9}"))
+        buttons.append(InlineKeyboardButton(f"💎 {str(remover + 9)[:-1]}/{math.ceil(len(entrepreneurs) / 9)-1} 💎",
+                                            callback_data="..."))
+        buttons.append(InlineKeyboardButton("Далее 👉",
+                                            callback_data=f"entrepreneurs_menu:{remover + 9}"))
 
     entrepreneurs_keyboard = InlineKeyboardMarkup()
     entrepreneurs_keyboard.add(*buttons)
@@ -72,7 +99,6 @@ def entrepreneurs_keyboard(entrepreneurs: list[Persons]) -> InlineKeyboardMarkup
     buttons = []
 
     for entrepreneur in entrepreneurs:
-
         buttons.append(InlineKeyboardButton(entrepreneur.Name,
                                             callback_data=f'fop_{shorten_name(entrepreneur.Name)}_'
                                                           f'{entrepreneur.Person_ID}'))
@@ -85,15 +111,15 @@ def extracts_keyboard(extracts: list[dict]) -> InlineKeyboardMarkup:
     for extract in extracts:
         hashed_data = hashlib.sha256(extract['name'].encode()).digest()
         short_hash = base64.urlsafe_b64encode(hashed_data)[:64].decode()
-        buttons.append(InlineKeyboardButton(f"{extract['month']}_{extract['name']}"[:20], callback_data=f'ex_{short_hash}'))
+        buttons.append(
+            InlineKeyboardButton(f"{extract['month']}_{extract['name']}"[:20], callback_data=f'ex_{short_hash}'))
 
-    return InlineKeyboardMarkup()\
-        .add(*buttons)\
+    return InlineKeyboardMarkup() \
+        .add(*buttons) \
         .row(InlineKeyboardButton('Назад', callback_data='back_extracts_menu'))
 
 
 def extract_details_keyboard(extract_name: str, holder_id: int) -> InlineKeyboardMarkup:
-
     try:
         fourDFs = DBClient().get_fourDF(holder_id, extract_name)
 
@@ -109,6 +135,7 @@ def extract_details_keyboard(extract_name: str, holder_id: int) -> InlineKeyboar
         ]
 
     return InlineKeyboardMarkup().add(*buttons)
+
 
 # END ENTREPRENEURS MENU
 

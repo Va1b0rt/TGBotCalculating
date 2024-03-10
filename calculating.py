@@ -4,10 +4,9 @@ import itertools
 import math
 import re
 from datetime import datetime
-from typing import Union, Any, Coroutine, Tuple, Dict, List
+from typing import Union, Optional
 
 import cchardet
-import numpy
 import pandas as pd
 
 from CSVBankExtract import CSVExtractor
@@ -832,7 +831,7 @@ def process_transactions(holder_id: int) -> tuple[dict[str, Union[float, str, li
     result: dict[str, Union[float, str]] = {}
 
     rows_text: str = ''
-    transactions: list[DBTransaction] = DBClient().get_transactions(holder_id=holder_id)
+    transactions: list[DBTransaction] = DBClient().get_transactions(holder_id=holder_id, ex_type='extract')
 
     for transaction in transactions:
         if not check_date(transaction.Date) or transaction.Amount < 0:
@@ -942,7 +941,7 @@ def pars_prro_csv(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, st
                 elif type(row) is int:
                     real_timestamp = int(str(row)[:-9])
                     row_datetime = datetime.fromtimestamp(real_timestamp)
-                    date = row_datetime.strftime('%d.%m.%Y')
+                    date = row_datetime.strftime('%d.%m.%Y %H:%M:%S')
                     date_column[row_num] = date
 
             cash_column = data_frame[columns[1]].values.tolist()
@@ -970,15 +969,14 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
 
         columns = data_frame.columns.values.tolist()
 
-        test = data_frame[columns[1]].values.tolist()
-
         if "Заводський номер" in columns[0]:
             date_column = data_frame[columns[2]].values.tolist()
             for row_num, row in enumerate(date_column):
                 if type(row) is str:
                     if re.search(r'\d*\.\d*\.\d* \d*:\d*:\d*', row):
                         day, month, year = row.split(' ')[0].split('.')
-                        date = f'{day}.{month}.{year}'
+                        hours, minutes, seconds = row.split(' ')[1].split(':')
+                        date = f'{day}.{month}.{year} {hours}:{minutes}:{seconds}'
                         date_column[row_num] = date
                 elif type(row) is int:
                     logger.warning('is int')
@@ -986,7 +984,7 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
                     logger.warning(f'real_timestamp: {real_timestamp}')
                     row_datetime = datetime.fromtimestamp(real_timestamp)
                     logger.warning(f'row_datetime: {row_datetime}')
-                    date = row_datetime.strftime('%d.%m.%Y')
+                    date = row_datetime.strftime('%d.%m.%Y %H:%M:%S')
                     date_column[row_num] = date
 
             cash_column = data_frame[columns[4]].values.tolist()
@@ -1003,11 +1001,11 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
             for row_num, row in enumerate(date_column):
                 if type(row) is str:
                     if re.search(r'\d*.\d*.\d* \d*:\d*:\d*', row):
-                        date_column[row_num] = row.split(' ')[0]
+                        date_column[row_num] = row
                 elif type(row) is int:
                     real_timestamp = int(str(row)[:-9])
                     row_datetime = datetime.fromtimestamp(real_timestamp)
-                    date = row_datetime.strftime('%d.%m.%Y')
+                    date = row_datetime.strftime('%d.%m.%Y %H:%M:%S')
                     date_column[row_num] = date
 
             cash_column = data_frame[columns[5]].values.tolist()
@@ -1038,7 +1036,7 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
                 if type(row) is int:
                     real_timestamp = int(str(row)[:-9])
                     row_datetime = datetime.fromtimestamp(real_timestamp)
-                    date = row_datetime.strftime('%d.%m.%Y')
+                    date = row_datetime.strftime('%d.%m.%Y %H:%M:%S')
                     date_column[row_num] = date
             if type_rro == 0:
                 cash_column = data_frame[columns[30]].values.tolist()
@@ -1066,7 +1064,8 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
                 if type(row) is str:
                     if re.search(r'\d*-\d*-\d* \d*:\d*:\d*', row):
                         year, month, day = row.split(' ')[0].split('-')
-                        date = f'{day}.{month}.{year}'
+                        hours, minutes, seconds = row.split(' ')[1].split(':')
+                        date = f'{day}.{month}.{year} {hours}:{minutes}:{seconds}'
                         date_column[row_num] = date
 
             cash_column = data_frame[columns[31]].values.tolist()
@@ -1086,12 +1085,13 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
                 if type(row) is str:
                     if re.search(r'\d*-\d*-\d* \d*:\d*:\d*', row):
                         year, month, day = row.split(' ')[0].split('-')
-                        date = f'{day}.{month}.{year}'
+                        hours, minutes, seconds = row.split(' ')[1].split(':')
+                        date = f'{day}.{month}.{year} {hours}:{minutes}:{seconds}'
                         date_column[row_num] = date
                 elif type(row) is int:
                     real_timestamp = int(str(row)[:-9])
                     row_datetime = datetime.fromtimestamp(real_timestamp)
-                    date = row_datetime.strftime('%d.%m.%Y')
+                    date = row_datetime.strftime('%d.%m.%Y %H:%M:%S')
                     date_column[row_num] = date
 
             cash_column = data_frame[columns[18]].values.tolist()
@@ -1110,6 +1110,10 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
 
         elif 'Облік і контроль кас' in columns[0]:
             date_column = data_frame[columns[3]].values.tolist()
+
+            for num, date_cell in date_column:
+                date_column[num] = f'{date_cell} 00:00:00'
+
             cash_column = data_frame[columns[5]].values.tolist()
             sum_product = data_frame[columns[5]].values.tolist()
 
@@ -1121,7 +1125,8 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
                 if type(row) is str:
                     if re.search(r'\d*-\d*-\d* \d*:\d*:\d*', row):
                         year, month, day = row.split(' ')[0].split('-')
-                        date = f'{day}.{month}.{year}'
+                        hours, minutes, seconds = row.split(' ')[1].split(':')
+                        date = f'{day}.{month}.{year} {hours}:{minutes}:{seconds}'
                         date_column[row_num] = date
 
             cash_column = data_frame[columns[12]].values.tolist()
@@ -1141,12 +1146,13 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
                 if type(row) is str:
                     if re.search(r'\d*-\d*-\d* \d*:\d*:\d*', row):
                         year, month, day = row.split(' ')[0].split('-')
-                        date = f'{day}.{month}.{year}'
+                        hours, minutes, seconds = row.split(' ')[1].split(':')
+                        date = f'{day}.{month}.{year} {hours}:{minutes}:{seconds}'
                         date_column[row_num] = date
                 elif type(row) is int:
                     real_timestamp = int(str(row)[:-9])
                     row_datetime = datetime.fromtimestamp(real_timestamp)
-                    date = row_datetime.strftime('%d.%m.%Y')
+                    date = row_datetime.strftime('%d.%m.%Y %H:%M:%S')
                     date_column[row_num] = date
             cash_column = data_frame[columns[4]].values.tolist()
 
@@ -1174,12 +1180,13 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
                 if type(row) is str:
                     if re.search(r'\d*-\d*-\d* \d*:\d*:\d*', row):
                         year, month, day = row.split(' ')[0].split('-')
-                        date = f'{day}.{month}.{year}'
+                        hours, minutes, seconds = row.split(' ')[1].split(':')
+                        date = f'{day}.{month}.{year} {hours}:{minutes}:{seconds}'
                         date_column[row_num] = date
                 elif type(row) is int:
                     real_timestamp = int(str(row)[:-9])
                     row_datetime = datetime.fromtimestamp(real_timestamp)
-                    date = row_datetime.strftime('%d.%m.%Y')
+                    date = row_datetime.strftime('%d.%m.%Y %H:%M:%S')
                     date_column[row_num] = date
 
             cash_column = data_frame[columns[4]].values.tolist()
@@ -1191,14 +1198,17 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
 
             return date_column, cash_column, sum_product
 
-
     except (TypeError, IndexError):
         raise NotHaveTemplatePRRO()
 
     raise NotHaveTemplatePRRO()
 
 
-def process_prro(prro_file: io.FileIO, data: dict[str, Union[float, str]], mime: str) -> dict[str, Union[float, str]]:
+def process_prro(prro_file: io.FileIO,
+                 data: dict[str, Union[float, str]],
+                 mime: str,
+                 file_name: str,
+                 holder_id: str) -> dict[str, Union[float, str]]:
     result = data
     if mime == 'xlsx':
         date_column, cash_column, sum_product = parce_prro(prro_file)
@@ -1208,7 +1218,8 @@ def process_prro(prro_file: io.FileIO, data: dict[str, Union[float, str]], mime:
         raise NotHaveTemplatePRRO()
 
     for date_cell, cash_cell, sum_cell in zip(date_column, cash_column, sum_product):
-        if check_date(date_cell):
+        prro_date = date_cell.split(' ')[0]
+        if check_date(prro_date):
             if type(cash_cell) is str:
                 cash_cell = float(cash_cell.replace(' ', '').replace(',', '.'))
 
@@ -1218,10 +1229,24 @@ def process_prro(prro_file: io.FileIO, data: dict[str, Union[float, str]], mime:
                 sum_cell = float(sum_cell.replace(' ', '').replace(',', '.'))
 
             if cash_cell > 0:
-                if date_cell not in result:
-                    result[date_cell] = sum_cell
+                transaction = Transaction(Extract_name=file_name,
+                                          Holder='',
+                                          Holder_id=holder_id,
+                                          Date=datetime.strptime(prro_date, '%d.%m.%Y'),
+                                          Amount=sum_cell,
+                                          Purpose='',
+                                          Egrpou='',
+                                          Type='prro',
+                                          Name='',
+                                          Hash=hashlib.sha256(f"{file_name}"
+                                                              f"{date_cell}{sum_cell}".encode()).hexdigest())
+
+                DBClient().add_transaction(transaction)
+
+                if prro_date not in result:
+                    result[prro_date] = sum_cell
                 else:
-                    result[date_cell] += sum_cell
+                    result[prro_date] += sum_cell
 
     return result
 
@@ -1261,37 +1286,40 @@ async def add_list_fop_sums(data: dict[str, Union[float, str, list[str]]],
     result: dict[str, list[str]] = {}
 
     for transaction in transactions:
-        if transaction.amount > 0 or pd.isna(transaction.amount):
+        if transaction.Type == 'prro':
             continue
 
-        contains, _ = if_contains_timesheet(patterns.column_B, transaction.purpose)
+        if transaction.Amount > 0 or pd.isna(transaction.Amount):
+            continue
+
+        contains, _ = if_contains_timesheet(patterns.column_B, transaction.Purpose)
         if contains:
             continue
 
-        if len(transaction.egrpou) != 10:
+        if len(transaction.Egrpou) != 10:
             continue
 
-        if not check_date(transaction.date):
+        if not check_date(transaction.Date):
             continue
 
-        if str(transaction.date.month) in sum_fops:
-            if f'{transaction.egrpou}' in sum_fops[str(transaction.date.month)]:
+        if str(transaction.Date.month) in sum_fops:
+            if f'{transaction.Egrpou}' in sum_fops[str(transaction.Date.month)]:
 
-                sum_fops[str(transaction.date.month)][f'{transaction.egrpou}'][0] += transaction.amount
+                sum_fops[str(transaction.Date.month)][f'{transaction.Egrpou}'][0] += transaction.Amount
             else:
-                sum_fops[str(transaction.date.month)][f'{transaction.egrpou}'] = [transaction.amount,
-                                                                                  transaction.name,
-                                                                                  transaction.extract_name,
-                                                                                  transaction.egrpou,
-                                                                                  transaction.holder_id,
-                                                                                  transaction.date]
+                sum_fops[str(transaction.Date.month)][f'{transaction.Egrpou}'] = [transaction.Amount,
+                                                                                  transaction.Name,
+                                                                                  transaction.Extract_name,
+                                                                                  transaction.Egrpou,
+                                                                                  transaction.Holder_id,
+                                                                                  transaction.Date]
         else:
-            sum_fops[str(transaction.date.month)] = {f'{transaction.egrpou}': [transaction.amount,
-                                                                               transaction.name,
-                                                                               transaction.extract_name,
-                                                                               transaction.egrpou,
-                                                                               transaction.holder_id,
-                                                                               transaction.date]}
+            sum_fops[str(transaction.Date.month)] = {f'{transaction.Egrpou}': [transaction.Amount,
+                                                                               transaction.Name,
+                                                                               transaction.Extract_name,
+                                                                               transaction.Egrpou,
+                                                                               transaction.Holder_id,
+                                                                               transaction.Date]}
 
     for _key in list(sum_fops.keys()):
         for key, value in sum_fops[_key].items():
@@ -1430,12 +1458,12 @@ def add_transactions(transactions: list[Transaction], date_cells, sum_cells,
         if pd.isna(name):
             name = ''
 
-        transactions.append(Transaction(extract_name=extract_name,
-                                        holder=title, holder_id=holder_id,
-                                        date=date, amount=amount,
-                                        purpose=purpose, egrpou=f'{egrpou}',
-                                        type="extract", name=name,
-                                        hash=hashlib.sha256(f"{extract_name}{title}"
+        transactions.append(Transaction(Extract_name=extract_name,
+                                        Holder=title, Holder_id=holder_id,
+                                        Date=date, Amount=amount,
+                                        Purpose=purpose, Egrpou=f'{egrpou}',
+                                        Type="extract", Name=name,
+                                        Hash=hashlib.sha256(f"{extract_name}{title}"
                                                             f"{holder_id}{date}{amount}{purpose}"
                                                             f"{egrpou}{name}".encode()).hexdigest()))
     return transactions
@@ -1449,10 +1477,10 @@ async def get_timerange(transactions: list[Transaction]) -> tuple[datetime, date
     start_date = datetime.now()
     end_date = datetime(1990, 1, 1)
     for transaction in transactions:
-        if transaction.date < start_date:
-            start_date = transaction.date
-        if transaction.date > end_date:
-            end_date = transaction.date
+        if transaction.Date < start_date:
+            start_date = transaction.Date
+        if transaction.Date > end_date:
+            end_date = transaction.Date
 
     return start_date, end_date
 
@@ -1479,8 +1507,7 @@ async def month_checker(holder_id) -> list[int]:
 
 
 async def get_timesheet_data(files: Union[io.FileIO, list[dict]], requests_type: str, mime_type: str = 'xlsx',
-                             prro_file: Union[io.FileIO, None] = None,
-                             prro_mime: str = '',
+                             prro_files: Optional[list[list[str, io.FileIO]]] = None,
                              title: str = '',
                              holder_id: str = '') -> tuple[dict, str, tuple[datetime, datetime], list[int]]:
 
@@ -1490,8 +1517,19 @@ async def get_timesheet_data(files: Union[io.FileIO, list[dict]], requests_type:
     timerange = await get_timerange(transactions)
     timesheet_data, rows = process_transactions(int(holder_id))
 
-    if prro_file:
-        timesheet_data = process_prro(prro_file, timesheet_data, prro_mime)
+    if prro_files:
+        for file_name, prro_file, mime_type in prro_files:
+            timesheet_data = process_prro(prro_file, timesheet_data, mime_type,
+                                          file_name=file_name, holder_id=holder_id)
+    else:
+        transactions = DBClient().get_transactions(int(holder_id), ex_type='prro',
+                                                   timerange=timerange)
+        for transaction in transactions:
+            if transaction.Date.strftime('%d.%m.%Y') in timesheet_data:
+                timesheet_data[transaction.Date.strftime('%d.%m.%Y')] += transaction.Amount
+
+            else:
+                timesheet_data[transaction.Date.strftime('%d.%m.%Y')] = transaction.Amount
 
     timesheet_data = counting_revenue(timesheet_data)
 

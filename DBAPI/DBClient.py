@@ -1,15 +1,17 @@
+import asyncio
 import datetime
 import sys
 import hashlib
 import base64
+from typing import Optional
 
 import peewee
-from peewee import MySQLDatabase, fn
+from peewee import MySQLDatabase, fn, JOIN
 
 from Constants import MONTHS
 from DBAPI import logger
 from DBAPI.DBExceptions import NotExistsFourDF, UserWasExists, UserNotExists
-from DBAPI.Models import Persons, CurrencyRate, Transaction, FourDF, User
+from DBAPI.Models import Persons, CurrencyRate, Transaction, FourDF, User, Employer, Worker
 from Exceptions import NotExistsPerson
 from config import db_host, db_user, db_passwd, database, db_port
 from utils.Rates import get_rate_in_date
@@ -42,12 +44,18 @@ class DBClient:
         FourDF._meta.database = DBClient.__database
         User._meta.database = DBClient.__database
 
+        Employer._meta.database = DBClient.__database
+        Worker._meta.database = DBClient.__database
+
         try:
             Persons.create_table()
             CurrencyRate.create_table()
             Transaction.create_table()
             FourDF.create_table()
             User.create_table()
+
+            Employer.create_table()
+            Worker.create_table()
         except peewee.OperationalError as err:
             logger.critical(err)
             sys.exit()
@@ -57,6 +65,9 @@ class DBClient:
         self.__transactions = Transaction
         self.__fourDF = FourDF
         self.__users = User
+
+        self.__employers = Employer
+        self.__workers = Worker
 
     @logger.catch
     def if_person_exists(self, person_id: int) -> bool:
@@ -121,43 +132,67 @@ class DBClient:
         :param transaction:
         :return:
         """
-        if not self.if_person_exists(transaction.holder_id):
-            self.add_person(transaction.holder_id, True, name=transaction.holder)
+        if not self.if_person_exists(transaction.Holder_id):
+            self.add_person(transaction.holder_id, True, name=transaction.Holder)
 
         try:
             if self.if_transaction_exists(transaction):
                 return
 
-            self.__transactions.create(Transaction_Hash=transaction.hash,
-                                       Extract_name=transaction.extract_name,
-                                       Holder_id=transaction.holder_id,
-                                       Date=transaction.date,
-                                       Amount=transaction.amount,
-                                       Purpose=transaction.purpose,
-                                       EGRPOU=transaction.egrpou,
-                                       Name=transaction.name,
-                                       Type=transaction.type
+            self.__transactions.create(Transaction_Hash=transaction.Hash,
+                                       Extract_name=transaction.Extract_name,
+                                       Holder_id=transaction.Holder_id,
+                                       Date=transaction.Date,
+                                       Amount=transaction.Amount,
+                                       Purpose=transaction.Purpose,
+                                       EGRPOU=transaction.Egrpou,
+                                       Name=transaction.Name,
+                                       Type=transaction.Type
                                        )
         except Exception as ex:
             raise Exception("Во время добавления транзакции произошла ошибка. Детали: \n"
-                            f"[ Holder: {transaction.holder_id}\n"
-                            f"  Date: {transaction.date}\n"
-                            f"  Amount: {transaction.amount}\n"
-                            f"  Purpose: {transaction.purpose}\n"
-                            f"  EGRPOU: {transaction.egrpou}\n"
-                            f"  Name: {transaction.name}\n"
-                            f"  Type: {transaction.type}"
+                            f"[ Holder: {transaction.Holder_id}\n"
+                            f"  Date: {transaction.Date}\n"
+                            f"  Amount: {transaction.Amount}\n"
+                            f"  Purpose: {transaction.Purpose}\n"
+                            f"  EGRPOU: {transaction.Egrpou}\n"
+                            f"  Name: {transaction.Name}\n"
+                            f"  Type: {transaction.Type}"
                             f"  Error: {ex}"
                             f"]")
 
-    def get_transactions(self, holder_id: int):
+    def get_transactions(self, holder_id: int,
+                         extract: Optional[str] = None,
+                         ex_type: Optional[str] = None,
+                         timerange: Optional[tuple[datetime.datetime, datetime.datetime]] = None) -> list[Transaction]:
         """
+        :param timerange:
+        :param ex_type:
+        :param extract:
         :param holder_id: EGRPOU holder_id
         :return: list transactions
         """
         try:
-            query = self.__transactions.select().where(self.__transactions.Holder_id == holder_id)
+            if extract:
+                ex_name = self.get_extract_name(extract, holder_id)
+                query = self.__transactions.select().where((self.__transactions.Holder_id == holder_id) &
+                                                           (self.__transactions.Extract_name == ex_name) &
+                                                           ((self.__transactions.Type == ex_type) if ex_type is not None else True))
+                return query
+
+            query = self.__transactions.select().where((self.__transactions.Holder_id == holder_id) &
+                                                       ((self.__transactions.Type == ex_type) if ex_type is not None else True))
+
+            #result = []
+            #if timerange:
+            #    for transaction in query:
+            #        if timerange[0] <= transaction.Date <= timerange[1]:
+            #            result.append(transaction)
+            #else:
+            #    result = query
+
             return query
+
         except Exception as ex:
             logger.exception(ex)
             raise Exception(f"Во время получения транзакций для пользователя '{holder_id}' произошла ошибка")
@@ -227,32 +262,40 @@ class DBClient:
             raise Exception(f"Во время получения списка дат "
                             f" пользователь: '{holder_id}' произошла ошибка")
 
+    def get_extract_type(self, extract_name: str, holder_id: int) -> str:
+        try:
+            transactions: list[Transaction] = Transaction.select().where(self.__transactions.Holder_id == holder_id,
+                                                      self.__transactions.Extract_name == extract_name)
+            extract_type = transactions[0].Type
+            return extract_type
+        except Exception as ex:
+            logger.warning(ex)
+            return ''
+
     def extract_details(self, extract_hash: str, holder_id: int) -> dict:
         extract_name = self.get_extract_name(extract_hash, holder_id)
+        extract_type = self.get_extract_type(extract_name, holder_id)
 
         try:
             transactions: list[Transaction] = Transaction.select().where(self.__transactions.Holder_id == holder_id,
                                                                          self.__transactions.Extract_name == extract_name)
-            return {'transactions_count': len(transactions)}
+            return {'transactions_count': len(transactions),
+                    'extract_type': extract_type}
+
         except Exception as ex:
             logger.exception(ex)
             raise Exception(f"Во время получения детализации выписки для пользователя '{holder_id}' произошла ошибка")
 
     def delete_extract(self, extract_name: str, holder_id: int) -> int:
-        try:
-            rows_deleted = Transaction.delete().where(self.__transactions.Holder_id == holder_id,
-                                                      self.__transactions.Extract_name == extract_name).execute()
-            if rows_deleted == 0:
-                # Если ни одной записи не было удалено, возможно, нужно обработать этот случай
-                raise Exception(f"Записи с Extract_name '{extract_name}' для пользователя '{holder_id}' не найдены.")
 
-            self.delete_fourDF(extract_name, holder_id)
+        rows_deleted = Transaction.delete().where(self.__transactions.Holder_id == holder_id,
+                                                  self.__transactions.Extract_name == extract_name).execute()
+        if rows_deleted == 0:
+            # Если ни одной записи не было удалено, возможно, нужно обработать этот случай
+            raise Exception(f"Записи с Extract_name '{extract_name}' для пользователя '{holder_id}' не найдены.")
+        self.delete_fourDF(extract_name, holder_id)
 
-            return rows_deleted
-
-        except Exception as ex:
-            logger.exception(ex)
-            raise Exception(f"Во время удаления выписки для пользователя '{holder_id}' произошла ошибка")
+        return rows_deleted
 
     def get_list_entrepreneurs(self) -> list[Persons]:
         try:
@@ -263,7 +306,7 @@ class DBClient:
             raise Exception(f"Во время получения списка предпринимателей произошла ошибка")
 
     def if_transaction_exists(self, transaction: tr):
-        query = self.__transactions.select().where(self.__transactions.Transaction_Hash == transaction.hash)
+        query = self.__transactions.select().where(self.__transactions.Transaction_Hash == transaction.Hash)
         return query.exists()
 
     # 4DF
@@ -320,7 +363,7 @@ class DBClient:
             if len(fourDFs) == 0:
                 raise NotExistsFourDF
 
-            result += f'{MONTHS[fourDFs[0].Date.month-1]}\n\n'
+            result += f'{MONTHS[fourDFs[0].Date.month - 1]}\n\n'
             for fourDF in fourDFs:
                 result += f'ЕГРПОУ: {fourDF.EntrepreneurID} СУММА: {fourDF.Amount} ' \
                           f'НАИМЕНОВАНИЕ: {fourDF.EntrepreneurName}\n'
@@ -333,20 +376,15 @@ class DBClient:
             raise Exception(f"Во время получения 4ДФ для пользователя '{holder_id}' произошла ошибка")
 
     def delete_fourDF(self, extract_name: str, holder_id: int) -> int:
-        try:
-            rows_deleted = FourDF.delete().where(self.__fourDF.Holder_id == holder_id,
-                                                 self.__fourDF.ExtractName == extract_name).execute()
-            if rows_deleted == 0:
-                # Если ни одной записи не было удалено, возможно, нужно обработать этот случай
-                raise Exception(f"Записи с Extract_name '{extract_name}' для пользователя '{holder_id}' не найдены.")
 
-            return rows_deleted
+        rows_deleted = FourDF.delete().where(self.__fourDF.Holder_id == holder_id,
+                                             self.__fourDF.ExtractName == extract_name).execute()
+        #if rows_deleted == 0:
+        #    # Если ни одной записи не было удалено, возможно, нужно обработать этот случай
+        #    raise Exception(f"Записи с Extract_name '{extract_name}' для пользователя '{holder_id}' не найдены.")
+        return rows_deleted
 
-        except Exception as ex:
-            logger.exception(ex)
-            raise Exception(f"Во время удаления 4ДФ для пользователя '{holder_id}' произошла ошибка")
-
-# USERS
+    # USERS
 
     def add_user(self, user_id: int, username: str, is_admin: bool, addedBy=None):
         try:
@@ -423,3 +461,46 @@ class DBClient:
     def if_user_exist(self, user_id: id):
         query = self.__users.select().where(self.__users.User_ID == user_id)
         return query.exists()
+
+    # EMPLOYERS
+
+    def get_employers(self, _filter: Optional[dict] = None,
+                      _sort: Optional[list] = None,
+                      _range: Optional[list] = None):
+        query = self.__employers.select().join(Worker, JOIN.LEFT_OUTER)
+
+        if _filter:
+            for key, value in _filter.items():
+                if key == 'q': key = 'name'
+                query = query.where(getattr(Employer, key).contains(value))
+
+        total = query.count()
+
+        if _sort:
+            for field in _sort:
+                # Определяем порядок сортировки по знаку + или -
+                if field.startswith("DESC_"):
+                    query = query.order_by(getattr(Employer, field.replace('DESC_', '')).desc())
+                else:
+                    query = query.order_by(getattr(Employer, field.replace('ASC_', '')))
+
+        if _range:
+            start, end = _range
+            query = query.limit(end - start + 1).offset(start)
+
+        query = query ##.prefetch(Worker)
+        return query, total
+
+    def get_employer(self, employer_id: int) -> Employer:
+        try:
+            employer = self.__employers.select().where(self.__employers.id == employer_id).join(Worker, JOIN.LEFT_OUTER)
+
+            if employer:
+                return employer.get()
+            else:
+                raise peewee.DoesNotExist()
+        except peewee.DoesNotExist as ex:
+            raise ex
+        except Exception as ex:
+            logger.exception(ex)
+
