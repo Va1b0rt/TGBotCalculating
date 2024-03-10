@@ -1111,7 +1111,10 @@ def parce_prro(prro_file: io.FileIO) -> tuple[list[str], list[Union[float, str]]
         elif 'Облік і контроль кас' in columns[0]:
             date_column = data_frame[columns[3]].values.tolist()
 
-            for num, date_cell in date_column:
+            for num, date_cell in enumerate(date_column):
+                if type(date_cell) is float and math.isnan(date_cell):
+                    continue
+
                 date_column[num] = f'{date_cell} 00:00:00'
 
             cash_column = data_frame[columns[5]].values.tolist()
@@ -1218,7 +1221,10 @@ def process_prro(prro_file: io.FileIO,
         raise NotHaveTemplatePRRO()
 
     for date_cell, cash_cell, sum_cell in zip(date_column, cash_column, sum_product):
-        prro_date = date_cell.split(' ')[0]
+        prro_date = date_cell
+        if type(date_cell) is str:
+            prro_date = prro_date.split(' ')[0]
+
         if check_date(prro_date):
             if type(cash_cell) is str:
                 cash_cell = float(cash_cell.replace(' ', '').replace(',', '.'))
