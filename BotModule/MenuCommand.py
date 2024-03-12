@@ -1,5 +1,6 @@
 import hashlib
 import io
+from typing import Optional
 
 from aiogram.dispatcher import FSMContext
 from aiogram.types import Message, CallbackQuery, ParseMode, InputFile
@@ -78,7 +79,7 @@ async def changed_entrepreneur(call: CallbackQuery, state: FSMContext):
                                     call.message.chat.id, call.message.message_id)
 
 
-async def get_income(holder_id: int, title: str, extract_hash) -> float:
+async def get_income(holder_id: int, title: str, extract_hash) -> Optional[float]:
     _transactions: list[db_trans] = DBClient().get_transactions(holder_id, extract_hash)
 
     transactions: list[Transaction] = []
@@ -94,7 +95,12 @@ async def get_income(holder_id: int, title: str, extract_hash) -> float:
                                                             f"{tr.EGRPOU}{tr.Name}".encode()).hexdigest()))
 
     timerange = await get_timerange(transactions)
-    timesheet_data, rows = process_transactions(int(holder_id))
+
+    try:
+        timesheet_data, rows = process_transactions(int(holder_id))
+    except:
+        timesheet_data, rows = process_transactions(int(holder_id), ex_type='prro')
+
     timesheet_data = counting_revenue(timesheet_data)
     return round(float(timesheet_data['months'][timerange[1].month - 1]), 2)
 
@@ -114,16 +120,20 @@ async def changed_extract(call: CallbackQuery, state: FSMContext):
             extract_type = "Выписка" if details["extract_type"] == 'extract' else "ПРРО"
 
             income = await get_income(data['holder_id'], data["title"], data['extract_hash'])
-            await EntrepreneursMenu.extract_detail.set()
-            await bot.edit_message_text(f'Предприниматель: <b>{data["title"]}</b>\n'
-                                        f'Тип выписки: <b>{extract_type}</b>\n'
-                                        f'Название выписки: <b>{extract_name}</b>\n'
-                                        f'Количество транзакций: <b>{details["transactions_count"]}.шт</b>\n'
-                                        f'Период: <b>{timerange}</b>\n'
-                                        f'Доход: <b>{income}</b>',
-                                        call.message.chat.id, call.message.message_id,
-                                        reply_markup=extract_details_keyboard(data['extract_hash'], data['holder_id']),
-                                        parse_mode=ParseMode.HTML)
+            if income:
+                await EntrepreneursMenu.extract_detail.set()
+                await bot.edit_message_text(f'Предприниматель: <b>{data["title"]}</b>\n'
+                                            f'Тип выписки: <b>{extract_type}</b>\n'
+                                            f'Название выписки: <b>{extract_name}</b>\n'
+                                            f'Количество транзакций: <b>{details["transactions_count"]}.шт</b>\n'
+                                            f'Период: <b>{timerange}</b>\n'
+                                            f'Доход: <b>{income}</b>',
+                                            call.message.chat.id, call.message.message_id,
+                                            reply_markup=extract_details_keyboard(data['extract_hash'], data['holder_id']),
+                                            parse_mode=ParseMode.HTML)
+            else:
+                await pressed_back_button(call)
+
     except Exception as ex:
         logger.exception(ex)
         await bot.edit_message_text(f'Не удалось получить детализацию по выписке.',
@@ -186,7 +196,6 @@ async def del_extract(call: CallbackQuery, state: FSMContext):
                                     call.message.chat.id, call.message.message_id,
                                     reply_markup=extract_details_keyboard(extract_name, data['holder_id']),
                                     parse_mode=ParseMode.HTML)
-
 
 
 @logger.catch

@@ -821,7 +821,7 @@ def remove_non_numeric_chars(input_string):
     return new_string
 
 
-def process_transactions(holder_id: int) -> tuple[dict[str, Union[float, str, list[float]]], str]:
+def process_transactions(holder_id: int, ex_type='extract') -> tuple[dict[str, Union[float, str, list[float]]], str]:
     """
     This function is an improved version of the gen_timesheet_data function.
     :param holder_id: EGRPOU holder_id
@@ -831,7 +831,7 @@ def process_transactions(holder_id: int) -> tuple[dict[str, Union[float, str, li
     result: dict[str, Union[float, str]] = {}
 
     rows_text: str = ''
-    transactions: list[DBTransaction] = DBClient().get_transactions(holder_id=holder_id, ex_type='extract')
+    transactions: list[DBTransaction] = DBClient().get_transactions(holder_id=holder_id, ex_type=ex_type)
 
     for transaction in transactions:
         if not check_date(transaction.Date) or transaction.Amount < 0:
@@ -1249,10 +1249,10 @@ def process_prro(prro_file: io.FileIO,
 
                 DBClient().add_transaction(transaction)
 
-                if prro_date not in result:
-                    result[prro_date] = sum_cell
-                else:
-                    result[prro_date] += sum_cell
+                #if prro_date not in result:
+                #    result[prro_date] = sum_cell
+                #else:
+                #    result[prro_date] += sum_cell
 
     return result
 
@@ -1527,15 +1527,13 @@ async def get_timesheet_data(files: Union[io.FileIO, list[dict]], requests_type:
         for file_name, prro_file, mime_type in prro_files:
             timesheet_data = process_prro(prro_file, timesheet_data, mime_type,
                                           file_name=file_name, holder_id=holder_id)
-    else:
-        transactions = DBClient().get_transactions(int(holder_id), ex_type='prro',
-                                                   timerange=timerange)
-        for transaction in transactions:
-            if transaction.Date.strftime('%d.%m.%Y') in timesheet_data:
-                timesheet_data[transaction.Date.strftime('%d.%m.%Y')] += transaction.Amount
 
-            else:
-                timesheet_data[transaction.Date.strftime('%d.%m.%Y')] = transaction.Amount
+    transactions = DBClient().get_transactions(int(holder_id), ex_type='prro')
+    for transaction in transactions:
+        if transaction.Date.strftime('%d.%m.%Y') in timesheet_data:
+            timesheet_data[transaction.Date.strftime('%d.%m.%Y')] += transaction.Amount
+        else:
+            timesheet_data[transaction.Date.strftime('%d.%m.%Y')] = transaction.Amount
 
     timesheet_data = counting_revenue(timesheet_data)
 

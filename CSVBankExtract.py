@@ -8,7 +8,7 @@ from dateutil import parser
 import cchardet
 import pandas as pd
 
-from DBAPI import DBClient
+from DBAPI.DBClient import DBClient
 from Exceptions import UnknownEncoding, NoDelimiter, NoColumn
 from cloud_sheets import Columns
 from logger import Logger

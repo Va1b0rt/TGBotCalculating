@@ -180,6 +180,8 @@ async def handle_prro(message: Message, state: FSMContext):
 @logger.catch
 @dp.callback_query_handler(lambda call: call.data == "button_handle_prro", state=StatesMenu.bok_prro_2)
 async def button_prro_upload(call: CallbackQuery, state: FSMContext):
+    await bot.edit_message_text('Обрабатываю...', call.message.chat.id,
+                                call.message.message_id)
     await handle_extract(call.message, state)
 
 
