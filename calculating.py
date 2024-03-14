@@ -1536,6 +1536,26 @@ async def get_timesheet_data(files: Union[io.FileIO, list[dict]], requests_type:
         else:
             timesheet_data[transaction.Date.strftime('%d.%m.%Y')] = transaction.Amount
 
+    if prro_value:
+        first_date = timerange[0].strftime('%d.%m.%Y')
+        if first_date in timesheet_data:
+            timesheet_data[first_date] += prro_value
+        else:
+            timesheet_data[first_date] = prro_value
+        transaction = Transaction(Extract_name="Fake_PRRO",
+                                  Holder='',
+                                  Holder_id=holder_id,
+                                  Date=timerange[0],
+                                  Amount=prro_value,
+                                  Purpose='',
+                                  Egrpou='',
+                                  Type='prro',
+                                  Name='',
+                                  Hash=hashlib.sha256(f"Fake_PRRO"
+                                                      f"{timerange[0]}{prro_value}".encode()).hexdigest())
+
+        DBClient().add_transaction(transaction)
+
     timesheet_data = counting_revenue(timesheet_data)
 
     if requests_type in ('timesheet', 'bok_prro'):
@@ -1543,13 +1563,6 @@ async def get_timesheet_data(files: Union[io.FileIO, list[dict]], requests_type:
         timesheet_data = await add_list_fop_sums(timesheet_data, transactions)
 
     lost_months: list[int] = await month_checker(holder_id)
-
-    if prro_value:
-        first_date = timerange[0].strftime('%d.%m.%Y')
-        if first_date in timesheet_data:
-            timesheet_data[first_date] += prro_value
-        else:
-            timesheet_data[first_date] = prro_value
 
     return timesheet_data, rows, timerange, lost_months
 
