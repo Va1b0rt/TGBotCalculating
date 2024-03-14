@@ -1515,7 +1515,8 @@ async def month_checker(holder_id) -> list[int]:
 async def get_timesheet_data(files: Union[io.FileIO, list[dict]], requests_type: str, mime_type: str = 'xlsx',
                              prro_files: Optional[list[list[str, io.FileIO]]] = None,
                              title: str = '',
-                             holder_id: str = '') -> tuple[dict, str, tuple[datetime, datetime], list[int]]:
+                             holder_id: str = '',
+                             prro_value: Optional[float] = None) -> tuple[dict, str, tuple[datetime, datetime], list[int]]:
 
     transactions: list[Transaction] = await get_files_data(files, title=title, holder_id=holder_id)
     await send_transactions(transactions)
@@ -1542,6 +1543,13 @@ async def get_timesheet_data(files: Union[io.FileIO, list[dict]], requests_type:
         timesheet_data = await add_list_fop_sums(timesheet_data, transactions)
 
     lost_months: list[int] = await month_checker(holder_id)
+
+    if prro_value:
+        first_date = timerange[0].strftime('%d.%m.%Y')
+        if first_date in timesheet_data:
+            timesheet_data[first_date] += prro_value
+        else:
+            timesheet_data[first_date] = prro_value
 
     return timesheet_data, rows, timerange, lost_months
 

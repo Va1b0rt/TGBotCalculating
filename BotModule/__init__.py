@@ -39,7 +39,8 @@ commands = ['/start',
             '/menu',
             '/test_command',
             '/AdminMenu',
-            '/salarytable']
+            '/SalaryTable',
+            '/fake_prro']
 
 
 class LogInteractionTimeMiddleware(BaseMiddleware):
@@ -111,5 +112,6 @@ from . import MenuCommand
 from . import TestCommand
 from . import AdminMenuCommand
 from . import SalaryTableCommand
+from . import FakePrroCommand
 
 

@@ -155,6 +155,8 @@ async def handle_tittle_question(message: Message, state: FSMContext):
 
 
 async def generate_timesheet(data, message):
+    await message.answer('Обрабатываем...')
+
     extracts = data['extracts']
     extracts_files = []
 

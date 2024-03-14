@@ -37,3 +37,9 @@ class AdminMenu(StatesGroup):
 
 class SalaryTableStates(StatesGroup):
     start = State()
+
+
+class FakePrroStates(StatesGroup):
+    start = State()
+    write_prro = State()
+    calculate = State()

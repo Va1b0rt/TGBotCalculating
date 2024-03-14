@@ -3,7 +3,7 @@ import base64
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from DB_API import Persons
+from DBAPI.Models import Persons
 from cloud_sheets import Entrepreneurs
 
 button_timesheet_acquiring = InlineKeyboardButton('Табель (эквайринг)', callback_data='button_timesheet_acquiring')
